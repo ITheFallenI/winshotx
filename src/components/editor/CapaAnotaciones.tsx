@@ -95,6 +95,20 @@ export function CapaAnotaciones({ herramienta, color, anotaciones, onAnadir, tex
   );
 }
 
+/** Lo que mide el aro de un paso, en el sistema de 1000 del SVG. */
+const RADIO_PASO = 38;
+
+/**
+ * El centro de una marca de un clic, metido lo justo para que la marca quepa entera.
+ *
+ * Al exportar se hace lo mismo (`encode::anotacion::centro_metido`), y por la misma razón:
+ * un disco partido por el borde no se lee, porque el número se va fuera y lo que queda es
+ * una mancha. Aquí hace falta además para que la vista previa enseñe lo que va a salir.
+ */
+function metido(v: number, radio: number): number {
+  return Math.min(1000 - radio, Math.max(radio, v));
+}
+
 /** Una marca dibujada, en el sistema de 1000 x 1000 del SVG. */
 function Marca({ anotacion: a }: { anotacion: Anotacion }) {
   const [x1, y1, x2, y2] = [a.x1 * 1000, a.y1 * 1000, a.x2 * 1000, a.y2 * 1000];
@@ -160,19 +174,20 @@ function Marca({ anotacion: a }: { anotacion: Anotacion }) {
           {a.text}
         </text>
       );
-    case "step":
+    case "step": {
       // El disco lleva un aro blanco por fuera, igual que al exportar: sobre una captura
       // oscura un disco de color sin borde se pierde, y sobre una clara se pierde el
       // número. El SVG va estirado a 1000 x 1000, así que el círculo se dibuja con dos
       // radios y sale ovalado si la captura no es cuadrada; al exportar lo pinta Rust
       // redondo, que es lo que cuenta.
+      const [cx, cy] = [metido(x1, RADIO_PASO), metido(y1, RADIO_PASO)];
       return (
         <g>
-          <ellipse cx={x1} cy={y1} rx={38} ry={38} fill="#ffffff" />
-          <ellipse cx={x1} cy={y1} rx={32} ry={32} fill={a.color} />
+          <ellipse cx={cx} cy={cy} rx={RADIO_PASO} ry={RADIO_PASO} fill="#ffffff" />
+          <ellipse cx={cx} cy={cy} rx={32} ry={32} fill={a.color} />
           <text
-            x={x1}
-            y={y1}
+            x={cx}
+            y={cy}
             fill="#ffffff"
             fontSize={38}
             fontWeight={700}
@@ -183,6 +198,7 @@ function Marca({ anotacion: a }: { anotacion: Anotacion }) {
           </text>
         </g>
       );
+    }
     default:
       return null;
   }

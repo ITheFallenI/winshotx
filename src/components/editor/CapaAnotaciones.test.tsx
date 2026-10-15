@@ -175,6 +175,35 @@ describe("los pasos numerados", () => {
     expect(onAnadir).toHaveBeenCalledWith(expect.objectContaining({ text: "3" }));
   });
 
+  /**
+   * Uno puesto contra el borde cabe entero.
+   *
+   * Si no, se ve un cuarto de disco y el número se va fuera de la captura, que es lo que
+   * pedía arreglar la issue 1. Al exportar se hace la misma cuenta (`centro_metido`), así
+   * que lo que se ve en la vista previa es lo que sale en el archivo.
+   */
+  it("uno contra el borde se mete para que quepa entero", () => {
+    conTamanno();
+    const enLaEsquina: Anotacion[] = [
+      { kind: "step", x1: 0, y1: 0, x2: 0, y2: 0, color: "#ef4444", text: "1" },
+    ];
+    const { svg } = pintar({ herramienta: null, anotaciones: enLaEsquina });
+    const aro = svg.querySelector("ellipse")!;
+    expect(Number(aro.getAttribute("cx"))).toBeGreaterThanOrEqual(38);
+    expect(Number(aro.getAttribute("cy"))).toBeGreaterThanOrEqual(38);
+  });
+
+  it("y uno que ya cabía no se mueve de donde se puso", () => {
+    conTamanno();
+    const enMedio: Anotacion[] = [
+      { kind: "step", x1: 0.5, y1: 0.5, x2: 0.5, y2: 0.5, color: "#ef4444", text: "1" },
+    ];
+    const { svg } = pintar({ herramienta: null, anotaciones: enMedio });
+    const aro = svg.querySelector("ellipse")!;
+    expect(aro.getAttribute("cx")).toBe("500");
+    expect(aro.getAttribute("cy")).toBe("500");
+  });
+
   it("se dibuja con su número dentro para verlo antes de exportar", () => {
     conTamanno();
     const puesto: Anotacion[] = [

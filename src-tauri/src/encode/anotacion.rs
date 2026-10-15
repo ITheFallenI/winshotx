@@ -34,12 +34,16 @@ pub struct Anotacion {
 }
 
 impl Anotacion {
-    /// Las dos esquinas en píxeles de esta imagen, ya ordenadas y dentro del lienzo.
+    /// Las dos esquinas en píxeles de esta imagen, ordenadas.
+    ///
+    /// **Pueden caer fuera del lienzo, y así tiene que ser**: quien pinta recorta. Antes se
+    /// metían dentro con un `clamp` por coordenada, y eso no recorta, MUEVE: una marca que
+    /// el recorte se había llevado reaparecía aplastada contra el borde, y una flecha que
+    /// apuntaba fuera cambiaba de ángulo porque sus dos extremos acababan en la misma
+    /// esquina. Es el fallo que pedía arreglar la issue #1.
     fn caja(&self, ancho: u32, alto: u32) -> (i32, i32, i32, i32) {
-        let px = |v: f32, tope: u32| ((v * tope as f32).round() as i32).clamp(0, tope as i32 - 1);
-        let (a, b) = (px(self.x1, ancho), px(self.x2, ancho));
-        let (c, d) = (px(self.y1, alto), px(self.y2, alto));
-        (a.min(b), c.min(d), a.max(b), c.max(d))
+        let (x1, y1, x2, y2) = self.caja_sin_ordenar(ancho, alto);
+        (x1.min(x2), y1.min(y2), x1.max(x2), y1.max(y2))
     }
 
     fn rgb(&self) -> [u8; 3] {
@@ -101,8 +105,12 @@ pub fn pintar(imagen: &mut RgbaImage, anotaciones: &[Anotacion]) {
 impl Anotacion {
     /// Igual que `caja`, pero sin ordenar: la flecha necesita saber de dónde sale y adónde
     /// va, y ordenar las esquinas le daría siempre la vuelta.
+    ///
+    /// Las coordenadas se limitan a ocho veces la imagen, que es mucho más de lo que puede
+    /// dar un reencuadre y a la vez impide que un número absurdo (o un `NaN`, que sale
+    /// cero) pida recorrer millones de píxeles invisibles.
     fn caja_sin_ordenar(&self, ancho: u32, alto: u32) -> (i32, i32, i32, i32) {
-        let px = |v: f32, tope: u32| ((v * tope as f32).round() as i32).clamp(0, tope as i32 - 1);
+        let px = |v: f32, tope: u32| (v.clamp(-8.0, 8.0) * tope as f32).round() as i32;
         (
             px(self.x1, ancho),
             px(self.y1, alto),
@@ -110,6 +118,121 @@ impl Anotacion {
             px(self.y2, alto),
         )
     }
+}
+
+/// El trozo de una caja que de verdad cae dentro de la imagen, o nada si no cae ninguno.
+fn dentro(imagen: &RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32) -> Option<(i32, i32, i32, i32)> {
+    let (ancho, alto) = imagen.dimensions();
+    let (izq, arr) = (x1.max(0), y1.max(0));
+    let (der, aba) = (x2.min(ancho as i32 - 1), y2.min(alto as i32 - 1));
+    (izq <= der && arr <= aba).then_some((izq, arr, der, aba))
+}
+
+/// El trozo de un segmento que entra en la imagen, con un margen por fuera para el grosor.
+///
+/// Recorta el RECORRIDO sin tocar la dirección, que es justo la diferencia entre recortar
+/// y mover: el segmento se mira como un parámetro que va de 0 a 1, y cada borde del lienzo
+/// adelanta el principio o acorta el final (Liang y Barsky). Así una flecha que apunta
+/// fuera sigue saliendo con su ángulo, solo que se ve el trozo que cabe.
+///
+/// El margen son los píxeles que el trazo pinta a cada lado de su línea. Sin él, un trazo
+/// que pasa justo por el borde perdería la mitad que sí se ve.
+fn recortar_segmento(
+    imagen: &RgbaImage,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+    margen: f32,
+) -> Option<(f32, f32, f32, f32)> {
+    let (ancho, alto) = imagen.dimensions();
+    let (hasta_x, hasta_y) = (ancho as f32 - 1.0 + margen, alto as f32 - 1.0 + margen);
+    let (dx, dy) = (x2 - x1, y2 - y1);
+    let (mut desde, mut hasta) = (0.0f32, 1.0f32);
+    for (avance, hueco) in [
+        (-dx, x1 + margen),
+        (dx, hasta_x - x1),
+        (-dy, y1 + margen),
+        (dy, hasta_y - y1),
+    ] {
+        if avance == 0.0 {
+            // Paralelo a ese borde: o cabe siempre, o no cabe nunca.
+            if hueco < 0.0 {
+                return None;
+            }
+            continue;
+        }
+        let t = hueco / avance;
+        if avance < 0.0 {
+            desde = desde.max(t);
+        } else {
+            hasta = hasta.min(t);
+        }
+        if desde > hasta {
+            return None;
+        }
+    }
+    Some((x1 + dx * desde, y1 + dy * desde, x1 + dx * hasta, y1 + dy * hasta))
+}
+
+/// Si ese punto está sobre la imagen, contando los bordes.
+///
+/// El borde cuenta: el 1 de «de 0 a 1» ES el borde derecho, y la capa de dibujar manda
+/// justo ese número cuando alguien pone una marca pegada al filo. Dejarlo fuera haría
+/// desaparecer la marca en el último píxel. Lo que viene de un recorte cae mucho más
+/// lejos, así que se sigue descartando.
+fn pisa_la_imagen(imagen: &RgbaImage, x: i32, y: i32) -> bool {
+    let (ancho, alto) = imagen.dimensions();
+    x >= 0 && y >= 0 && x <= ancho as i32 && y <= alto as i32
+}
+
+/// Dónde cae el centro de una marca de un clic para que quepa entera, o nada si el clic
+/// está fuera de la imagen.
+///
+/// Las dos cosas importan. Que no vuelva lo que el recorte se llevó, y que lo que sí está
+/// dentro quepa: un disco partido por la mitad no se lee, porque el número se va fuera y
+/// lo que queda es una mancha. Si la marca es más grande que la imagen, se centra y ya.
+fn centro_metido(
+    imagen: &RgbaImage,
+    x: i32,
+    y: i32,
+    media_ancho: i32,
+    media_alto: i32,
+) -> Option<(i32, i32)> {
+    let (ancho, alto) = imagen.dimensions();
+    if !pisa_la_imagen(imagen, x, y) {
+        return None;
+    }
+    let mete = |v: i32, media: i32, tope: i32| {
+        if media * 2 >= tope {
+            tope / 2
+        } else {
+            v.clamp(media, tope - 1 - media)
+        }
+    };
+    Some((
+        mete(x, media_ancho, ancho as i32),
+        mete(y, media_alto, alto as i32),
+    ))
+}
+
+/// Lo mismo, para un dibujo que se ancla por su esquina de arriba a la izquierda.
+fn esquina_metida(
+    imagen: &RgbaImage,
+    x: i32,
+    y: i32,
+    ancho_dibujo: i32,
+    alto_dibujo: i32,
+) -> Option<(i32, i32)> {
+    let (ancho, alto) = imagen.dimensions();
+    if !pisa_la_imagen(imagen, x, y) {
+        return None;
+    }
+    let mete = |v: i32, dibujo: i32, tope: i32| v.min((tope - dibujo).max(0));
+    Some((
+        mete(x, ancho_dibujo, ancho as i32),
+        mete(y, alto_dibujo, alto as i32),
+    ))
 }
 
 /// Un punto de color, mezclado con lo que hubiera.
@@ -147,12 +270,22 @@ fn disco(imagen: &mut RgbaImage, cx: i32, cy: i32, radio: f32, color: [u8; 3]) {
 }
 
 /// Una línea gorda, dibujada como una fila de discos.
+///
+/// Se recorta al lienzo ANTES de recorrerla, con el radio de margen para no perder la
+/// mitad que se ve de un trazo que pasa por el borde. Recortar aquí es lo que hace que un
+/// rectángulo del que solo entra un lado pinte ese lado y no los otros, y que una marca
+/// que el recorte dejó fuera no pinte nada en lugar de una raya contra el borde.
 fn linea(imagen: &mut RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32, radio: f32, color: [u8; 3]) {
-    let pasos = (x2 - x1).abs().max((y2 - y1).abs()).max(1);
+    let Some((x1, y1, x2, y2)) =
+        recortar_segmento(imagen, x1 as f32, y1 as f32, x2 as f32, y2 as f32, radio)
+    else {
+        return;
+    };
+    let pasos = ((x2 - x1).abs().max((y2 - y1).abs()).round() as i32).max(1);
     for i in 0..=pasos {
         let t = i as f32 / pasos as f32;
-        let x = x1 as f32 + (x2 - x1) as f32 * t;
-        let y = y1 as f32 + (y2 - y1) as f32 * t;
+        let x = x1 + (x2 - x1) * t;
+        let y = y1 + (y2 - y1) * t;
         disco(imagen, x.round() as i32, y.round() as i32, radio, color);
     }
 }
@@ -185,6 +318,9 @@ fn flecha(imagen: &mut RgbaImage, caja: &(i32, i32, i32, i32), color: [u8; 3]) {
 
 /// Marcador translúcido: se ve lo de debajo, teñido.
 fn resaltar(imagen: &mut RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32, color: [u8; 3]) {
+    let Some((x1, y1, x2, y2)) = dentro(imagen, x1, y1, x2, y2) else {
+        return;
+    };
     for y in y1..=y2 {
         for x in x1..=x2 {
             punto(imagen, x, y, color, 0.32);
@@ -204,6 +340,11 @@ fn lado_del_mosaico(ancho: i32, alto: i32) -> i32 {
 /// clave. Un mosaico tira la información de verdad: lo que había dentro del cuadrado ya no
 /// está en el archivo.
 fn difuminar(imagen: &mut RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32) {
+    // El trozo que entra, y nada si no entra ninguno. Además es lo que mantiene a
+    // `get_pixel` dentro del vector, que aquí se lee directo sin comprobar nada.
+    let Some((x1, y1, x2, y2)) = dentro(imagen, x1, y1, x2, y2) else {
+        return;
+    };
     let lado = lado_del_mosaico(x2 - x1 + 1, y2 - y1 + 1);
     let mut y = y1;
     while y <= y2 {
@@ -252,6 +393,13 @@ fn texto(imagen: &mut RgbaImage, x: i32, y: i32, texto: &str, color: [u8; 3]) {
     // El tamaño de la letra sale del ancho de la imagen, igual que el grosor del trazo: un
     // texto de 22 px sobre una captura de 3.000 no se lee.
     let alto_letra = ((imagen.width() as f32 / 42.0).round() as i32).clamp(14, 72);
+    // El clic manda, pero el texto tiene que caber: puesto contra el borde derecho se iba
+    // fuera y se perdía casi entero. Y si el clic cayó fuera de la imagen, que es lo normal
+    // cuando el recorte se llevó esa zona, no se escribe nada.
+    let (ancho_texto, alto_texto) = medida_del_texto(texto, alto_letra);
+    let Some((x, y)) = esquina_metida(imagen, x, y, ancho_texto, alto_texto) else {
+        return;
+    };
     escribir_en(imagen, x, y, texto, alto_letra, color);
 }
 
@@ -283,6 +431,11 @@ fn medida_del_texto(que: &str, alto_letra: i32) -> (i32, i32) {
         .unwrap_or((0, 0))
 }
 
+/// Lo que mide el disco de un paso sobre una imagen de este ancho.
+fn radio_del_paso(ancho: u32) -> f32 {
+    (ancho as f32 / 26.0).clamp(15.0, 60.0)
+}
+
 /// Un paso numerado: un disco del color elegido con su número dentro, en blanco.
 ///
 /// Es la marca de las instrucciones: «primero esto, luego esto otro». Se pone con un clic y
@@ -292,10 +445,16 @@ fn medida_del_texto(que: &str, alto_letra: i32) -> (i32, i32) {
 /// El disco se mide contra el ancho de la imagen, como el grosor del trazo: uno de 40 px
 /// sobre una captura de 3.000 sería un lunar.
 fn paso(imagen: &mut RgbaImage, cx: i32, cy: i32, numero: &str, color: [u8; 3]) {
-    let radio = (imagen.width() as f32 / 26.0).clamp(15.0, 60.0);
+    let radio = radio_del_paso(imagen.width());
+    let aro = radio + grosor(imagen.width()) as f32 * 0.6;
+    // Entero o nada: un cuarto de disco con el número fuera no es un paso, es una mancha.
+    let Some((cx, cy)) = centro_metido(imagen, cx, cy, aro.ceil() as i32, aro.ceil() as i32)
+    else {
+        return;
+    };
     // Un aro blanco por debajo, un poco más grande: sobre una captura oscura un disco rojo
     // sin borde se pierde, y sobre una clara se pierde el número.
-    disco(imagen, cx, cy, radio + grosor(imagen.width()) as f32 * 0.6, [255, 255, 255]);
+    disco(imagen, cx, cy, aro, [255, 255, 255]);
     disco(imagen, cx, cy, radio, color);
     if numero.is_empty() {
         return;
@@ -330,7 +489,11 @@ fn medida_del_texto(_que: &str, _alto_letra: i32) -> (i32, i32) {
 
 #[cfg(not(windows))]
 fn paso(imagen: &mut RgbaImage, cx: i32, cy: i32, _numero: &str, color: [u8; 3]) {
-    let radio = (imagen.width() as f32 / 26.0).clamp(15.0, 60.0);
+    let radio = radio_del_paso(imagen.width());
+    let Some((cx, cy)) = centro_metido(imagen, cx, cy, radio.ceil() as i32, radio.ceil() as i32)
+    else {
+        return;
+    };
     disco(imagen, cx, cy, radio, color);
 }
 
@@ -655,6 +818,238 @@ mod tests {
         let (a, b) = imagen.dimensions();
         crate::encode::png::save(&imagen, &ruta, a, b).expect("guardar");
         println!("{}", ruta.display());
+    }
+
+    /// Lo que cae ENTERO fuera de la imagen no se pinta, ni pegado al borde.
+    ///
+    /// Es el fallo de la issue #1. Al recortar la captura, `Recorte::reencuadrar` vuelve a
+    /// medir las marcas sobre el trozo, y las de la zona cortada salen con coordenadas por
+    /// encima de 1 o por debajo de 0. Quien pintaba las metía dentro a la fuerza con un
+    /// `clamp` por coordenada, así que una flecha o un resaltado que ya no estaban en la
+    /// imagen reaparecían aplastados contra el borde.
+    #[test]
+    fn lo_que_cae_entero_fuera_no_se_pinta() {
+        for kind in ["box", "arrow", "highlight", "blur", "step", "text"] {
+            for (x1, y1, x2, y2) in [(1.2, 1.2, 1.8, 1.8), (-0.8, -0.8, -0.2, -0.2)] {
+                let mut imagen = lienzo(200, 200);
+                let mut fuera = marca(kind, x1, y1, x2, y2);
+                fuera.text = "1".into();
+                pintar(&mut imagen, &[fuera]);
+                assert_eq!(
+                    tocados(&imagen),
+                    0,
+                    "«{kind}» en ({x1}, {y1})-({x2}, {y2}) ha pintado dentro de la imagen"
+                );
+            }
+        }
+    }
+
+    /// Una marca a medias se RECORTA: se ve el trozo que cae dentro, en su sitio.
+    ///
+    /// Con el `clamp` por coordenada se encogía: el resaltado del 60 % al 140 % se
+    /// convertía en uno del 60 % al 100 %, que es otro tamaño, y el rectángulo perdía su
+    /// lado de fuera pintándolo encima del borde.
+    #[test]
+    fn una_marca_a_medias_se_recorta_en_su_sitio() {
+        let mut imagen = lienzo(200, 100);
+        pintar(&mut imagen, &[marca("highlight", 0.6, 0.2, 1.4, 0.8)]);
+        assert_ne!(
+            *imagen.get_pixel(199, 50),
+            Rgba([255, 255, 255, 255]),
+            "el resaltado llega hasta el borde de la imagen"
+        );
+        assert_ne!(*imagen.get_pixel(130, 50), Rgba([255, 255, 255, 255]));
+        assert_eq!(
+            *imagen.get_pixel(100, 50),
+            Rgba([255, 255, 255, 255]),
+            "y lo de antes del 60 % se queda limpio"
+        );
+    }
+
+    /// La flecha que apunta fuera mantiene su dirección.
+    ///
+    /// Con el `clamp` los dos extremos acababan en la esquina y la flecha salía a
+    /// cuarenta y cinco grados, apuntando a otro sitio.
+    #[test]
+    fn la_flecha_que_apunta_fuera_no_cambia_de_angulo() {
+        let mut imagen = lienzo(200, 200);
+        // Del centro hacia fuera por la derecha: 400 px de avance por 100 de bajada.
+        pintar(&mut imagen, &[marca("arrow", 0.5, 0.5, 2.5, 1.0)]);
+        let fila_media = |x: u32| {
+            let filas: Vec<i32> = (0..200u32)
+                .filter(|y| *imagen.get_pixel(x, *y) != Rgba([255, 255, 255, 255]))
+                .map(|y| y as i32)
+                .collect();
+            assert!(!filas.is_empty(), "la columna {x} tenía que llevar trazo");
+            filas.iter().sum::<i32>() / filas.len() as i32
+        };
+        // En x = 190 la línea va por y = 100 + 90 / 4 = 122, no por 190.
+        let y = fila_media(190);
+        assert!(
+            (y - 122).abs() <= 4,
+            "la flecha tenía que pasar por y = 122 en x = 190, y ha salido en {y}"
+        );
+    }
+
+    /// Un paso puesto contra el borde cabe entero en vez de salir partido.
+    ///
+    /// Un disco cortado por la mitad no se lee: el número se va fuera y lo que queda es
+    /// una mancha. Se empuja hacia dentro lo justo para que entre.
+    #[test]
+    fn un_paso_contra_el_borde_cabe_entero() {
+        let mut imagen = RgbaImage::from_pixel(400, 400, Rgba([20, 20, 20, 255]));
+        let mut uno = marca("step", 0.0, 0.5, 0.0, 0.5);
+        uno.text = "1".into();
+        pintar(&mut imagen, &[uno]);
+        // El radio son 400 / 26, unos 15 px: un disco entero pasa de 500 píxeles del
+        // color, y partido por la mitad no llega.
+        let del_color = imagen
+            .pixels()
+            .filter(|p| p.0 == [239, 68, 68, 255])
+            .count();
+        assert!(
+            del_color > 500,
+            "el disco del paso ha salido partido: {del_color} píxeles de color"
+        );
+    }
+
+    /// Un paso en el filo exacto (el 1 de «de 0 a 1») se pinta, no desaparece.
+    ///
+    /// La capa de dibujar recorta el ratón a 1, así que un clic en la última columna de
+    /// la captura manda exactamente eso. Si el filo contara como fuera, la marca se
+    /// perdería justo donde el usuario la puso.
+    #[test]
+    fn un_paso_en_el_filo_exacto_se_pinta() {
+        for (x, y) in [(1.0, 0.5), (0.5, 1.0), (1.0, 1.0), (0.0, 0.0)] {
+            let mut imagen = lienzo(400, 400);
+            let mut uno = marca("step", x, y, x, y);
+            uno.text = "2".into();
+            pintar(&mut imagen, &[uno]);
+            assert!(
+                tocados(&imagen) > 500,
+                "el paso puesto en ({x}, {y}) no se ha pintado entero"
+            );
+        }
+    }
+
+    /// Y un texto contra el borde derecho se mete para que se pueda leer.
+    #[cfg(windows)]
+    #[test]
+    fn un_texto_contra_el_borde_se_mete_para_que_se_lea() {
+        let mut imagen = lienzo(600, 200);
+        let mut letras = marca("text", 0.99, 0.5, 0.99, 0.5);
+        letras.text = "cuidado".into();
+        pintar(&mut imagen, &[letras]);
+        let (ancho_texto, _) = medida_del_texto("cuidado", (600.0f32 / 42.0).round() as i32);
+        assert!(ancho_texto > 0, "sin fuente no hay nada que comprobar");
+        let tocados_ahora = tocados(&imagen);
+        assert!(
+            tocados_ahora > ancho_texto as usize,
+            "el texto se ha quedado fuera de la imagen: solo {tocados_ahora} píxeles"
+        );
+    }
+
+    /// Las marcas contra los bordes y las que un recorte dejó fuera, para mirarlas.
+    /// `cargo test --lib ver_los_bordes -- --ignored --nocapture`
+    #[test]
+    #[ignore = "no comprueba nada: deja dos PNG para mirar"]
+    fn ver_los_bordes() {
+        use crate::encode::recorte::Recorte;
+
+        let fondo = |imagen: &mut RgbaImage| {
+            for (x, y, p) in imagen.enumerate_pixels_mut() {
+                *p = if (x / 40 + y / 40) % 2 == 0 {
+                    Rgba([238, 240, 244, 255])
+                } else {
+                    Rgba([250, 250, 252, 255])
+                };
+            }
+        };
+
+        let mut marcas = vec![
+            // Contra las cuatro esquinas y los cuatro bordes.
+            Anotacion {
+                kind: "step".into(),
+                x1: 0.0,
+                y1: 0.0,
+                x2: 0.0,
+                y2: 0.0,
+                color: "#ef4444".into(),
+                text: "1".into(),
+            },
+            Anotacion {
+                kind: "step".into(),
+                x1: 1.0,
+                y1: 1.0,
+                x2: 1.0,
+                y2: 1.0,
+                color: "#0a9bff".into(),
+                text: "2".into(),
+            },
+            Anotacion {
+                kind: "text".into(),
+                x1: 0.99,
+                y1: 0.06,
+                x2: 0.99,
+                y2: 0.06,
+                color: "#111827".into(),
+                text: "pegado al borde".into(),
+            },
+            // Un rectángulo del que solo entra un trozo.
+            Anotacion {
+                kind: "box".into(),
+                x1: 0.6,
+                y1: 0.3,
+                x2: 1.4,
+                y2: 0.55,
+                color: "#22c55e".into(),
+                text: String::new(),
+            },
+            // Una flecha que apunta fuera: tiene que salir con su ángulo.
+            Anotacion {
+                kind: "arrow".into(),
+                x1: 0.25,
+                y1: 0.45,
+                x2: 1.8,
+                y2: 0.85,
+                color: "#ef4444".into(),
+                text: String::new(),
+            },
+            // Un resaltado que se sale por abajo.
+            Anotacion {
+                kind: "highlight".into(),
+                x1: 0.08,
+                y1: 0.82,
+                x2: 0.45,
+                y2: 1.3,
+                color: "#fbbf24".into(),
+                text: String::new(),
+            },
+        ];
+
+        let mut imagen = RgbaImage::new(720, 420);
+        fondo(&mut imagen);
+        pintar(&mut imagen, &marcas);
+        let a = std::env::temp_dir().join("winshotx-bordes.png");
+        imagen.save(&a).unwrap();
+
+        // Y lo mismo despues de quedarse con el cuarto de arriba a la izquierda: todo lo
+        // que cae fuera del trozo tiene que DESAPARECER, no aplastarse contra el borde.
+        let trozo = Recorte {
+            x1: 0.0,
+            y1: 0.0,
+            x2: 0.5,
+            y2: 0.5,
+        };
+        let mut recortada = RgbaImage::new(360, 210);
+        fondo(&mut recortada);
+        marcas = marcas.iter().map(|m| trozo.reencuadrar(m)).collect();
+        pintar(&mut recortada, &marcas);
+        let b = std::env::temp_dir().join("winshotx-bordes-recortada.png");
+        recortada.save(&b).unwrap();
+
+        println!("{}", a.display());
+        println!("{}", b.display());
     }
 
     #[test]
