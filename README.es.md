@@ -115,6 +115,7 @@ incluidas las cinco que gana la de Windows.
 | Atajo | Acción |
 |---|---|
 | `Ctrl+Shift+2` | Capturar región |
+| `Win+Shift+L` | Capturar una región y abrirla en el editor, sin pasar por la barra |
 | `Ctrl+Shift+5` | Grabar región · púlsalo otra vez para terminar |
 | `Ctrl+Shift+6` | Quedarte con lo último que pasó · mientras «los últimos segundos» esté encendido |
 | `Impr Pant` | Capturar región · si le quitas la tecla a la Herramienta de Recortes |

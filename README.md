@@ -115,6 +115,7 @@ has the nineteen rows, including the five the Snipping Tool wins.
 | Shortcut | Action |
 |---|---|
 | `Ctrl+Shift+2` | Capture a region |
+| `Win+Shift+L` | Capture a region and open it in the editor, skipping the toolbar |
 | `Ctrl+Shift+5` | Record a region · press again to stop |
 | `Ctrl+Shift+6` | Keep what just happened · while "the last few seconds" is on |
 | `Print Screen` | Capture a region · once you take the key from the Snipping Tool |
@@ -142,7 +143,7 @@ middle does not leave two threes in the same picture.
 On a pinned shot: `Ctrl+C` copies it, `Ctrl+S` saves it to the shots folder, `T` copies its text
 and `Esc` closes it.
 
-Both global shortcuts can be changed in the settings by clicking the field and typing the new
+Every global shortcut can be changed in the settings by clicking the field and typing the new
 combination. If another application already holds it, the field turns red and says so.
 
 `Print Screen` belongs to the Snipping Tool through a per-user registry value, so registering the
