@@ -1,4 +1,4 @@
-import { ArrowUpRight, Circle, Highlighter, Square, Type, Undo2, X } from "lucide-react";
+import { ArrowUpRight, Circle, Highlighter, ShieldCheck, Square, Type, Undo2, X } from "lucide-react";
 import { COLORES, type Herramienta } from "../../lib/anotaciones";
 import { useT } from "../../lib/i18n";
 
@@ -23,6 +23,10 @@ interface Props {
   cuantas: number;
   onDeshacer: () => void;
   onBorrarTodo: () => void;
+  /** Tapar de una vez los datos personales que haya en la imagen. */
+  onTaparDatos: () => void;
+  /** Mientras el lector de texto trabaja, que son unas decimas sobre una captura grande. */
+  buscandoDatos: boolean;
 }
 
 const HERRAMIENTAS: {
@@ -49,6 +53,8 @@ export function BarraAnotar({
   cuantas,
   onDeshacer,
   onBorrarTodo,
+  onTaparDatos,
+  buscandoDatos,
 }: Props) {
   const t = useT();
   return (
@@ -106,6 +112,19 @@ export function BarraAnotar({
       )}
 
       <span className="ml-auto flex items-center gap-1">
+        {/*
+          Tapar datos va al lado del difuminado porque es lo mismo, hecho solo: encuentra
+          los correos, los telefonos, las tarjetas, las cuentas y los DNI de la imagen y
+          deja un mosaico encima de cada uno. Lo que deja son marcas normales, asi que se
+          ven antes de exportar y se quitan con Ctrl+Z.
+        */}
+        <Boton
+          icono={ShieldCheck}
+          etiqueta={t("Tapar datos personales")}
+          activa={false}
+          onClick={onTaparDatos}
+          apagada={buscandoDatos}
+        />
         <Boton
           icono={Undo2}
           etiqueta={t("Deshacer la última (Ctrl+Z)")}

@@ -13,6 +13,7 @@ mod recorder;
 mod replay;
 mod tray_menu;
 mod settings;
+pub mod sensibles;
 mod state;
 mod tray;
 mod windows_mgr;
@@ -254,6 +255,7 @@ pub fn run() {
             commands::session_camera,
             commands::frame_image,
             commands::export_media,
+            commands::tapar_datos,
             commands::ffmpeg_available,
             commands::get_settings,
             commands::set_settings,

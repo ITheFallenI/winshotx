@@ -459,6 +459,9 @@ export const EN: Record<string, string> = {
   "Tapar datos": "Hide details",
   "Escribe y pulsa en la imagen": "Type, then click on the image",
   "Deshacer la última (Ctrl+Z)": "Undo the last one (Ctrl+Z)",
+  "Tapar datos personales": "Cover up personal data",
+  "No he encontrado datos personales en esta imagen": "I found no personal data in this image",
+  "Tapado: {detalle}": "Covered up: {detalle}",
   "Quitar todas": "Remove them all",
 
   // Los bloques de «Grabar»

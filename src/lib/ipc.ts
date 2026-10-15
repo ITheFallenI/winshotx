@@ -21,6 +21,7 @@ import type {
   StillResult,
   StudioData,
 } from "./types";
+import type { Anotacion } from "./anotaciones";
 import type { Recorte } from "./recorte";
 
 /** Unica puerta hacia Rust: si un comando cambia de nombre, se cambia aqui. */
@@ -99,6 +100,19 @@ export const sessionStudio = (sessionId: string) =>
 /** La cámara del zoom en cada fotograma, con ese zoom y ese recorte. */
 export const sessionCamera = (sessionId: string, zoom: number, crop: Recorte | null) =>
   invoke<MuestraCamara[]>("session_camera", { sessionId, zoom, crop });
+
+/**
+ * Busca datos personales en el fotograma y devuelve las marcas que los taparían.
+ *
+ * No cambia nada por su cuenta: las marcas se añaden en el editor, donde se ven antes de
+ * exportar y se quitan con Ctrl+Z. El mosaico borra los píxeles de verdad, así que taparlo
+ * a la fuerza sería lo único de la aplicación que no se puede deshacer.
+ */
+export const tapaDatos = (sessionId: string, index: number) =>
+  invoke<{ marcas: Anotacion[]; resumen: [string, number][] }>("tapar_datos", {
+    sessionId,
+    index,
+  });
 
 /** Extrae un frame concreto como PNG y devuelve su ruta absoluta. */
 export const frameImage = (sessionId: string, index: number) =>

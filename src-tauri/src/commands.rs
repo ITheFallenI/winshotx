@@ -555,6 +555,91 @@ pub async fn frame_image(app: AppHandle, session_id: String, index: usize) -> Re
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Lo que se ha tapado y con que marcas, para poder ensennarlo y para poder contarlo.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatosTapados {
+    pub marcas: Vec<crate::encode::anotacion::Anotacion>,
+    /// Cuantos de cada clase, en el orden en que se encontraron: «2 correos, 1 telefono».
+    pub resumen: Vec<(String, usize)>,
+}
+
+/// Cuanto se agranda la caja de una palabra antes de taparla, en veces su alto.
+///
+/// El rectangulo que da el lector es el de las letras, y las letras tienen colas y
+/// acentos que se salen de el. Un mosaico que deja asomar la mitad de una «j» no tapa
+/// nada, y uno que se pasa dos pixeles no molesta a nadie.
+const MARGEN: f32 = 0.18;
+
+/// Busca datos personales en un fotograma y devuelve las marcas que los taparian.
+///
+/// **No cambia nada por su cuenta.** Devuelve las marcas y las annade el editor, que es
+/// quien sabe lo que el usuario ya habia dibujado y quien puede deshacerlas con Ctrl+Z.
+/// Tapar algo a la fuerza en la imagen seria lo unico de la aplicacion que no se puede
+/// deshacer, porque el mosaico borra los pixeles de verdad.
+#[tauri::command]
+pub async fn tapar_datos(app: AppHandle, session_id: String, index: usize) -> Result<DatosTapados> {
+    let session = session_of(&app, &session_id)?;
+    let image = record::read_frame(&session, index)?;
+    let (ancho, alto) = (image.width() as f32, image.height() as f32);
+    let bytes = png::to_bytes(&image)?;
+
+    let lineas = crate::platform::ocr::leer_palabras(&bytes)?;
+    let mut marcas = Vec::new();
+    let mut cuenta: Vec<(String, usize)> = Vec::new();
+    for linea in &lineas {
+        for hallazgo in crate::sensibles::buscar_en_linea(linea) {
+            let Some(marca) = caja_de(linea, &hallazgo.palabras, ancho, alto) else {
+                continue;
+            };
+            marcas.push(marca);
+            let nombre = hallazgo.clase.nombre().to_string();
+            match cuenta.iter_mut().find(|(n, _)| *n == nombre) {
+                Some((_, cuantos)) => *cuantos += 1,
+                None => cuenta.push((nombre, 1)),
+            }
+        }
+    }
+    Ok(DatosTapados {
+        marcas,
+        resumen: cuenta,
+    })
+}
+
+/// La marca que tapa esas palabras: su caja envolvente, con margen, de 0 a 1.
+fn caja_de(
+    linea: &[crate::sensibles::Palabra],
+    cuales: &[usize],
+    ancho: f32,
+    alto: f32,
+) -> Option<crate::encode::anotacion::Anotacion> {
+    if ancho <= 0.0 || alto <= 0.0 {
+        return None;
+    }
+    let partes: Vec<&crate::sensibles::Palabra> = cuales.iter().filter_map(|i| linea.get(*i)).collect();
+    let primera = partes.first()?;
+    let mut x1 = primera.x;
+    let mut y1 = primera.y;
+    let mut x2 = primera.x + primera.ancho;
+    let mut y2 = primera.y + primera.alto;
+    for p in partes.iter().skip(1) {
+        x1 = x1.min(p.x);
+        y1 = y1.min(p.y);
+        x2 = x2.max(p.x + p.ancho);
+        y2 = y2.max(p.y + p.alto);
+    }
+    let margen = (y2 - y1) * MARGEN;
+    Some(crate::encode::anotacion::Anotacion {
+        kind: "blur".into(),
+        x1: ((x1 - margen) / ancho).clamp(0.0, 1.0),
+        y1: ((y1 - margen) / alto).clamp(0.0, 1.0),
+        x2: ((x2 + margen) / ancho).clamp(0.0, 1.0),
+        y2: ((y2 + margen) / alto).clamp(0.0, 1.0),
+        color: String::new(),
+        text: String::new(),
+    })
+}
+
 #[tauri::command]
 pub async fn export_media(app: AppHandle, request: ExportRequest) -> Result<ExportResult> {
     exporter::export(&app, request)
@@ -1013,4 +1098,71 @@ pub async fn set_capture_flow(app: AppHandle, flow: crate::settings::CaptureFlow
 pub async fn open_settings(app: AppHandle) -> Result<()> {
     windows_mgr::close_overlays(&app);
     windows_mgr::show_settings(&app)
+}
+
+#[cfg(test)]
+mod pruebas_de_tapar {
+    use super::*;
+    use crate::sensibles::Palabra;
+
+    fn palabra(texto: &str, x: f32, y: f32, ancho: f32, alto: f32) -> Palabra {
+        Palabra {
+            texto: texto.into(),
+            x,
+            y,
+            ancho,
+            alto,
+        }
+    }
+
+    /// La caja se mide **de 0 a 1 sobre la imagen**, que es como van todas las marcas.
+    ///
+    /// Es donde se cuela un fallo de coordenadas sin que nada falle: una marca en píxeles
+    /// se ve bien en la vista previa de hoy y aparece en otro sitio en cuanto se exporta a
+    /// otro tamaño.
+    #[test]
+    fn la_caja_sale_en_tanto_por_uno_sobre_la_imagen() {
+        // Una palabra de 100 px de ancho en la mitad de una imagen de 1000 x 500.
+        let linea = vec![palabra("hola@example.com", 400.0, 240.0, 200.0, 20.0)];
+        let marca = caja_de(&linea, &[0], 1000.0, 500.0).expect("una marca");
+        assert_eq!(marca.kind, "blur", "lo que tapa es el mosaico, no otra cosa");
+        // El margen es el 18 % del alto de la palabra: 3,6 px arriba y abajo.
+        assert!((marca.x1 - 0.3964).abs() < 0.001, "x1 ha salido {}", marca.x1);
+        assert!((marca.x2 - 0.6036).abs() < 0.001, "x2 ha salido {}", marca.x2);
+        assert!(marca.y1 < 0.48 && marca.y2 > 0.52, "la banda tiene que cubrir la palabra");
+    }
+
+    /// Varias palabras son UNA caja: una tarjeta en cuatro grupos se tapa de una pieza, no
+    /// con cuatro mosaicos que dejan ver los huecos de en medio.
+    #[test]
+    fn varias_palabras_se_tapan_con_una_sola_caja() {
+        let linea = vec![
+            palabra("4539", 100.0, 50.0, 40.0, 10.0),
+            palabra("5787", 150.0, 50.0, 40.0, 10.0),
+            palabra("6362", 200.0, 50.0, 40.0, 10.0),
+            palabra("1486", 250.0, 50.0, 40.0, 10.0),
+        ];
+        let marca = caja_de(&linea, &[0, 1, 2, 3], 400.0, 100.0).expect("una marca");
+        assert!(marca.x1 < 0.25, "empieza en la primera cifra: {}", marca.x1);
+        assert!(marca.x2 > 0.72, "y llega hasta la última: {}", marca.x2);
+    }
+
+    /// Lo que asoma por el borde se queda dentro: una marca fuera del lienzo no se pinta
+    /// (ver `encode::anotacion`), así que un dato pegado al borde se quedaría sin tapar.
+    #[test]
+    fn una_palabra_pegada_al_borde_no_se_sale_de_la_imagen() {
+        let linea = vec![palabra("600123456", 0.0, 0.0, 120.0, 20.0)];
+        let marca = caja_de(&linea, &[0], 200.0, 100.0).expect("una marca");
+        assert_eq!(marca.x1, 0.0, "el margen no la saca por la izquierda");
+        assert_eq!(marca.y1, 0.0, "ni por arriba");
+        assert!(marca.x2 <= 1.0 && marca.y2 <= 1.0);
+    }
+
+    #[test]
+    fn sin_palabras_no_hay_marca() {
+        assert!(caja_de(&[], &[], 100.0, 100.0).is_none());
+        let linea = vec![palabra("hola", 0.0, 0.0, 10.0, 10.0)];
+        assert!(caja_de(&linea, &[7], 100.0, 100.0).is_none(), "un índice que no existe");
+        assert!(caja_de(&linea, &[0], 0.0, 100.0).is_none(), "una imagen sin ancho");
+    }
 }

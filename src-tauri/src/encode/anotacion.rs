@@ -12,10 +12,13 @@
 //! olvidarse una para que una flecha señalara al sitio equivocado.
 
 use image::{Rgba, RgbaImage};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Una marca sobre la captura, con sus dos esquinas en tanto por uno.
-#[derive(Debug, Clone, Deserialize)]
+///
+/// Tambien se serializa, porque tapar datos personales las devuelve hechas: el editor las
+/// recibe y las annade a las que ya hubiera, como si las hubiera dibujado alguien.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Anotacion {
     /// `arrow`, `box`, `text`, `highlight`, `blur` o `step`.

@@ -12,6 +12,7 @@ import {
   sessionFrames,
   sessionInfo,
   sessionStudio,
+  tapaDatos,
 } from "../../lib/ipc";
 import { clamp, formatTimecode } from "../../lib/format";
 import {
@@ -195,6 +196,47 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
    * Sale del tamanno de la region grabada, no del de la vista previa: la vista previa
    * cambia con la ventana y el archivo no.
    */
+  const [buscandoDatos, setBuscandoDatos] = useState(false);
+  /** Lo ultimo que ha pasado, para decirlo sin tapar la imagen. Se va solo. */
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  /**
+   * Tapa de una vez los datos personales que haya en el fotograma que se está viendo.
+   *
+   * Lo que vuelve son marcas de difuminado normales, así que se ven antes de exportar y se
+   * quitan con Ctrl+Z. Eso no es un detalle: el mosaico borra los píxeles de verdad, y
+   * aplicarlo sin que nadie lo vea sería lo único de la aplicación que no tiene vuelta
+   * atrás. Si no encuentra nada, lo dice, porque un botón que no hace nada visible es
+   * indistinguible de un botón roto.
+   */
+  const taparDatos = useCallback(async () => {
+    if (buscandoDatos) return;
+    setBuscandoDatos(true);
+    setAviso(null);
+    try {
+      const { marcas, resumen } = await tapaDatos(sessionId, currentIndex);
+      if (marcas.length === 0) {
+        setAviso(t("No he encontrado datos personales en esta imagen"));
+        return;
+      }
+      setAnotaciones((previas) => [...previas, ...marcas]);
+      const detalle = resumen.map(([clase, cuantos]) => `${cuantos} ${clase}`).join(", ");
+      setAviso(t("Tapado: {detalle}", { detalle }));
+    } catch (e) {
+      setAviso(String(e));
+    } finally {
+      setBuscandoDatos(false);
+    }
+  }, [buscandoDatos, sessionId, currentIndex, t]);
+
+  // El aviso se va solo: es algo que acaba de pasar, no un estado de la aplicacion, y uno
+  // que se queda fijo acaba leyendose como si siguiera pasando.
+  useEffect(() => {
+    if (!aviso) return;
+    const reloj = setTimeout(() => setAviso(null), 5000);
+    return () => clearTimeout(reloj);
+  }, [aviso]);
+
   const recorteEnPixeles = useMemo(() => {
     if (!recorte || !session) return "";
     const { width, height } = medidaDelRecorte(recorte, session.region.width, session.region.height);
@@ -486,6 +528,13 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
               explicación es indistinguible de un botón roto: es literalmente lo que pasó
               el 29 de agosto de 2026, «sigue sin dejarme darle al play».
             */}
+            {aviso && (
+              <div className="pointer-events-none absolute bottom-14 left-1/2 -translate-x-1/2">
+                <span className="rounded-full bg-black/80 px-3 py-1 text-[11px] text-neutral-200 shadow-lg backdrop-blur-md">
+                  {aviso}
+                </span>
+              </div>
+            )}
             {!videoUrl && session.format !== "still" && (
               <div className="pointer-events-none absolute bottom-14 left-1/2 -translate-x-1/2">
                 <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] text-neutral-300 backdrop-blur-md">
@@ -585,6 +634,8 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
             cuantas={anotaciones.length}
             onDeshacer={() => setAnotaciones((previas) => previas.slice(0, -1))}
             onBorrarTodo={() => setAnotaciones([])}
+            onTaparDatos={() => void taparDatos()}
+            buscandoDatos={buscandoDatos}
           />
 
           <FrameStrip
