@@ -23,6 +23,22 @@ describe("t, el traductor", () => {
     expect(t("Al pulsar el atajo")).toBe("When you press the shortcut");
   });
 
+  it("en chino devuelve lo que dice SU catalogo, no el ingles", () => {
+    // La traduccion la aporto wang13zhe en la propuesta 2 del repositorio. La prueba
+    // existe porque un tercer idioma se rompe en silencio: si `t` se quedara mirando el
+    // catalogo ingles, la aplicacion saldria en ingles sin que fallara nada.
+    aplicarIdioma("zh");
+    expect(t("Al pulsar el atajo")).toBe("按下快捷键时");
+    expect(t("Capturar región")).toBe("区域截图");
+  });
+
+  it("y lo que al chino le falta sale en espannol, igual que al ingles", () => {
+    aplicarIdioma("zh");
+    expect(t("Una frase que nadie ha traducido todavia")).toBe(
+      "Una frase que nadie ha traducido todavia",
+    );
+  });
+
   it("lo que falta en el catalogo sale en espannol, no en blanco", () => {
     aplicarIdioma("en");
     expect(t("Una frase que nadie ha traducido todavia")).toBe(

@@ -179,11 +179,14 @@ const TEMAS: { value: Theme; label: string }[] = [
   { value: "oscuro", label: "Oscuro" },
 ];
 
-/** Los dos idiomas que habla hoy. Anadir uno mas es una linea aqui y un archivo mas. */
+/** Los idiomas que habla hoy. Anadir uno mas es una linea aqui y un archivo mas. */
 const IDIOMAS: { value: Language; label: string }[] = [
   { value: "sistema", label: "Automático" },
   { value: "es", label: "Español" },
   { value: "en", label: "Inglés" },
+  // El nombre de cada idioma va en ESE idioma, que es como lo busca quien lo necesita:
+  // alguien que abre la aplicacion en chino no esta buscando la palabra «Chino».
+  { value: "zh", label: "中文" },
 ];
 
 /** Tres opciones y ninguna más: un campo de números aquí solo sirve para escribir 47. */
