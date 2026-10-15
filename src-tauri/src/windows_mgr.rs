@@ -88,7 +88,17 @@ const MARGEN_REPINTADO: std::time::Duration = std::time::Duration::from_millis(1
 #[serde(rename_all = "camelCase")]
 pub enum OverlayIntent {
     Capture,
+    /// Capturar y abrir el editor de una vez, sin pasar por la barra de la selección.
+    Edit,
     Record,
+}
+
+impl OverlayIntent {
+    /// Si lo que se va a llevar el usuario es una foto, que es lo que decide si el
+    /// temporizador tiene sentido y si la barra de modos arranca en «foto».
+    pub fn es_foto(self) -> bool {
+        self != Self::Record
+    }
 }
 
 /// Punto de entrada del atajo de captura: prepara la pantalla y abre la seleccion.
@@ -118,7 +128,7 @@ pub fn open_overlays(app: &AppHandle, intent: OverlayIntent) -> Result<()> {
     // la pantalla congelada es un fondo para elegir la region y no la foto que se lleva
     // nadie: hacer esperar cinco segundos ahi solo seria una espera.
     let segundos = state.settings.read().capture_delay_seconds;
-    if segundos == 0 || intent == OverlayIntent::Record {
+    if segundos == 0 || !intent.es_foto() {
         return congelar_y_abrir(app, candado);
     }
 

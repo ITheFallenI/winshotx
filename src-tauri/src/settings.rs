@@ -58,6 +58,15 @@ pub struct Settings {
     /// que ya se grabo.
     #[serde(default = "atajo_de_repeticion")]
     pub replay_shortcut: String,
+    /// La tecla que captura y abre el editor de una vez, sin pasar por la barra.
+    ///
+    /// Va aparte del atajo de capturar porque no es lo mismo: aquel es para la captura de
+    /// todos los días, que acaba en el portapapeles o en un archivo, y este es para la que
+    /// hay que trabajar (señalar algo, tapar un dato, recortar). Teniendo que elegir
+    /// después en la barra, la captura larga cuesta un clic más justo cuando ya sabes lo
+    /// que quieres.
+    #[serde(default = "atajo_de_editar")]
+    pub edit_shortcut: String,
     pub save_directory: String,
     pub capture_flow: CaptureFlow,
     /// Claro, oscuro, o lo que diga Windows.
@@ -145,6 +154,7 @@ impl Default for Settings {
             capture_shortcut: "CmdOrCtrl+Shift+2".into(),
             record_shortcut: "CmdOrCtrl+Shift+5".into(),
             replay_shortcut: atajo_de_repeticion(),
+            edit_shortcut: atajo_de_editar(),
             save_directory: default_save_dir(),
             capture_flow: CaptureFlow::Toolbar,
             theme: Theme::Sistema,
@@ -193,6 +203,17 @@ fn fps_de_repeticion() -> u32 {
 /// Sigue la serie de las otras dos: capturar es la 2, grabar la 5.
 fn atajo_de_repeticion() -> String {
     "CmdOrCtrl+Shift+6".into()
+}
+
+/// La captura que va al editor, al lado de la de Windows en el teclado.
+///
+/// `Win+Mayús+L` y no una de la serie de los números porque esta es la hermana de
+/// `Win+Mayús+S`: la misma mano, una tecla al lado. `Win+L` sí la tiene cogida el sistema
+/// (bloquear el equipo) y no se puede pedir, pero `Win+Mayús+L` está libre. Si en alguna
+/// máquina no lo estuviera, los ajustes dejan cambiarla, y la app avisa de que no la ha
+/// conseguido en vez de dejar una tecla muerta.
+fn atajo_de_editar() -> String {
+    "Super+Shift+KeyL".into()
 }
 
 fn default_save_dir() -> String {
@@ -266,6 +287,19 @@ pub fn save(app: &AppHandle, settings: &Settings) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Quien actualice desde una version sin la tecla del editor tiene que encontrarsela
+    /// puesta, no vacia: un atajo en blanco no se registra y la funcion no existiria.
+    #[test]
+    fn unos_ajustes_de_antes_de_la_tecla_del_editor_la_traen_de_fabrica() {
+        let viejos = serde_json::json!({
+            "captureShortcut": "Alt+KeyX",
+            "recordShortcut": "Alt+KeyV"
+        });
+        let settings: Settings = serde_json::from_value(viejos).expect("leer los ajustes");
+        assert_eq!(settings.edit_shortcut, "Super+Shift+KeyL");
+        assert_eq!(settings.capture_shortcut, "Alt+KeyX", "y sin pisar lo que habia");
+    }
 
     /// Un `settings.json` escrito por una version anterior no trae las claves nuevas. Sin
     /// el `default` del contenedor, serde falla ahi y `load` aparta el archivo entero y

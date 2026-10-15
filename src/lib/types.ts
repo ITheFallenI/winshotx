@@ -33,8 +33,11 @@ export type Theme = "sistema" | "claro" | "oscuro";
 /** En que idioma habla la app. "sistema" es el de Windows, si winshotx lo habla. */
 export type Language = "sistema" | "es" | "en";
 
-/** Con que se abrio el overlay: el mismo sirve para capturar y para grabar. */
-export type OverlayIntent = "capture" | "record";
+/**
+ * Con que se abrio el overlay: el mismo sirve para capturar, para grabar y para capturar
+ * llevando la foto derecha al editor.
+ */
+export type OverlayIntent = "capture" | "record" | "edit";
 
 /** Que se hara con el recorte. Se elige en la barra de arriba, antes de recortar. */
 export type CaptureMode = "still" | "video" | "gif";
@@ -276,6 +279,8 @@ export interface Settings {
   recordShortcut: string;
   /** La tecla que se queda con lo que ACABA de pasar. */
   replayShortcut: string;
+  /** La tecla que captura y abre el editor de una vez, sin pasar por la barra. */
+  editShortcut: string;
   saveDirectory: string;
   copyAfterCapture: boolean;
   openEditorAfterRecording: boolean;
@@ -317,6 +322,8 @@ export interface Settings {
 
 export interface ShortcutStatus {
   capture: boolean;
+  /** La que captura y abre el editor. Lleva la tecla Windows, así que puede no darse. */
+  edit: boolean;
   record: boolean;
   /** La de los últimos segundos. Solo se pide mientras el anillo está encendido. */
   replay: boolean;

@@ -495,6 +495,17 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
    */
   const alVuelo = !conBarra;
 
+  /**
+   * Si esta captura se abrio con la tecla del editor.
+   *
+   * Sale del payload y no de un ajuste porque es del DISPARO, no de la configuracion: la
+   * misma persona usa las dos teclas el mismo dia, una para la captura de todos los dias
+   * y otra para la que hay que trabajar.
+   */
+  const alEditor = payload?.intent === "edit";
+  const alEditorRef = useRef(false);
+  alEditorRef.current = alEditor;
+
   const grabarRegion = useCallback(
     async (rect: Rect, format: "gif" | "video") => {
       if (!payload || busy) return;
@@ -715,6 +726,10 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
         // solo se copia sola si ese es el perfil. Si no, sale la barra de la seleccion.
         if (elegido) {
           if (modo !== "still") void grabarRegion(elegido, modo);
+          // La tecla del editor no pregunta: quien la pulsa ya sabe que va a anotar, y
+          // pararse en la barra a elegir «editar» seria un clic de mas en el unico sitio
+          // donde no hace falta decidir nada.
+          else if (alEditor) void capturarRegion(elegido, "edit");
           else if (alVuelo) void capturarRegion(elegido, "copy");
         }
       }
@@ -729,7 +744,7 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [mode, readHex, alVuelo, modo, capturarRegion, grabarRegion]);
+  }, [mode, readHex, alVuelo, alEditor, modo, capturarRegion, grabarRegion]);
 
   /** Se lleva esta pantalla entera con lo que diga la barra: foto, video o GIF. */
   const llevarsePantalla = useCallback(async () => {
@@ -745,6 +760,10 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     // la llevaba al portapapeles y cerraba, y la barra no aparecia nunca; `Ctrl+A`, que
     // hace exactamente lo mismo, si la ensennaba. Dos caminos al mismo sitio no pueden
     // acabar en dos sitios distintos. Lo conto Munir el 9 de septiembre de 2026.
+    if (alEditorRef.current) {
+      await capturarRegion(todo, "edit");
+      return;
+    }
     if (conBarraRef.current) {
       setSelection(todo);
       return;
@@ -937,7 +956,7 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
       )}
 
       <AnimatePresence>
-        {active && mode.kind === "idle" && !alVuelo && (
+        {active && mode.kind === "idle" && !alVuelo && !alEditor && (
           <FloatingToolbar
             key="toolbar"
             left={clamp(active.x + active.width / 2, 190, window.innerWidth - 190)}

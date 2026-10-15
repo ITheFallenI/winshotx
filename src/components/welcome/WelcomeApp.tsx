@@ -51,6 +51,7 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
   const [imprPant, setImprPant] = useState<PrintScreenState | null>(null);
   const [atajos, setAtajos] = useState<ShortcutStatus>({
     capture: true,
+    edit: true,
     record: true,
     replay: false,
     printScreen: false,

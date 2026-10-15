@@ -218,6 +218,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
   const [settings, setLocal] = useState<Settings | null>(null);
   const [shortcuts, setShortcuts] = useState<ShortcutStatus>({
     capture: true,
+    edit: true,
     record: true,
     replay: false,
     printScreen: false,
@@ -445,6 +446,22 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                         value={settings.captureShortcut}
                         active={shortcuts.capture}
                         onChange={(v) => patch({ captureShortcut: v })}
+                      />
+                    }
+                  />
+                  <Row
+                    icon={<SquarePen className="size-4" />}
+                    label={t("Capturar y abrir el editor")}
+                    explicacion={t(
+                      "La misma captura, pero al soltar el ratón se abre el editor en vez de la barra de siempre. Para la captura que hay que trabajar: señalar algo con una flecha, tapar un dato o recortar antes de mandarla.",
+                    )}
+                    hint={shortcuts.edit ? undefined : t("esa combinación está ocupada")}
+                    tone="warn"
+                    control={
+                      <ShortcutField
+                        value={settings.editShortcut}
+                        active={shortcuts.edit}
+                        onChange={(v) => patch({ editShortcut: v })}
                       />
                     }
                   />

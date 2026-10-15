@@ -214,6 +214,41 @@ describe("el interruptor de la barra de acciones", () => {
   });
 });
 
+describe("la tecla que captura y abre el editor", () => {
+  /**
+   * Quien pulsa esa tecla ya sabe que va a anotar, asi que pararse en la barra a elegir
+   * «editar» seria un clic de mas. Y manda sobre el perfil: aunque la barra este
+   * encendida, esta captura no la ensenna.
+   */
+  it("al soltar el recorte se va al editor, sin pasar por la barra", async () => {
+    responde("overlay_bootstrap", { ...PAYLOAD, intent: "edit" });
+    const lienzo = await abrir();
+    emite(EVENTS.overlayMode, { mode: "still", fullScreen: false, withToolbar: true });
+
+    arrastrar(lienzo, { x: 200, y: 300 }, { x: 500, y: 500 });
+
+    await waitFor(() =>
+      expect(llamadas.some((l) => l.comando === "capture_still")).toBe(true),
+    );
+    const accion = (
+      llamadas.find((l) => l.comando === "capture_still")?.args as { action: string }
+    ).action;
+    expect(accion).toBe("edit");
+    expect(screen.queryByLabelText("Copiar")).toBeNull();
+  });
+
+  /** Y la tecla de siempre sigue sacando la barra: no se le ha quitado nada a nadie. */
+  it("y el atajo de siempre sigue sacando la barra", async () => {
+    const lienzo = await abrir();
+    emite(EVENTS.overlayMode, { mode: "still", fullScreen: false, withToolbar: true });
+
+    arrastrar(lienzo, { x: 200, y: 300 }, { x: 500, y: 500 });
+
+    expect(await screen.findByLabelText("Copiar")).toBeInTheDocument();
+    expect(llamadas.some((l) => l.comando === "capture_still")).toBe(false);
+  });
+});
+
 describe("la lupa no se pone encima de lo que estas mirando", () => {
   /**
    * Munir, el 9 de septiembre de 2026: «cuando capturas una esquina de la pantalla no ves

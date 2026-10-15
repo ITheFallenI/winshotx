@@ -32,6 +32,7 @@ const PARADO: ReplayStatus = {
 
 const AJUSTES: Settings = {
   captureShortcut: "Ctrl+Shift+2",
+  editShortcut: "Super+Shift+KeyL",
   theme: "sistema",
   language: "sistema",
   recordShortcut: "Ctrl+Shift+5",

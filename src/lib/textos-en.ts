@@ -19,6 +19,8 @@ export const EN: Record<string, string> = {
   // Capturar
   "Al pulsar el atajo": "When you press the shortcut",
   "Capturar región": "Capture a region",
+  "Capturar y abrir el editor": "Capture and open the editor",
+  "La misma captura, pero al soltar el ratón se abre el editor en vez de la barra de siempre. Para la captura que hay que trabajar: señalar algo con una flecha, tapar un dato o recortar antes de mandarla.": "The same capture, but letting go of the mouse opens the editor instead of the usual toolbar. For the shot you have to work on: point at something with an arrow, cover up a detail, or crop before you send it.",
   "esa combinación está ocupada": "that combination is taken",
   "Esperar antes de capturar": "Wait before capturing",
   "la pantalla se congela al pulsar el atajo": "the screen freezes the moment you press it",
