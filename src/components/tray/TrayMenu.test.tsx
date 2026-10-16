@@ -139,7 +139,8 @@ describe("las ultimas capturas", () => {
       expect(llamadas.some((l) => l.comando === "copiar_captura")).toBe(true),
     );
     const args = llamadas.find((l) => l.comando === "copiar_captura")?.args as { path: string };
-    expect(args.path).toBe(FOTOS[1].path, "tiene que copiar la que se ha pulsado, no la primera");
+    // La que se ha pulsado, no la primera de la lista.
+    expect(args.path).toBe(FOTOS[1].path);
   });
 
   it("sin nada guardado todavia, el menu no ensenna la seccion", async () => {

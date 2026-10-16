@@ -89,10 +89,10 @@ has the nineteen rows, including the five the Snipping Tool wins.
 | Frame by frame editor | **yes** | no |
 | Pick your own shortcut | **yes** | no |
 | Draw and annotate on top | **six marks, with numbered steps** | pen, shapes and text |
-| Copy the text out of the image | **yes, with the T key** | yes |
+| Copy the text out of the image | **yes, with the T key and inside the editor too** | yes |
 | System audio when recording | **yes, and the microphone mixed in** | yes |
 | Timer before capturing | 3 or 5 seconds | **3, 5 or 10 seconds** |
-| Blur out personal data | by hand, and with a mosaic | **automatic** |
+| Cover up personal data | **one click, and the mosaic destroys the pixels** | automatic, and it blurs |
 
 ## Is this what you were looking for?
 
@@ -116,6 +116,7 @@ has the nineteen rows, including the five the Snipping Tool wins.
 |---|---|
 | `Ctrl+Shift+2` | Capture a region |
 | `Win+Shift+L` | Capture a region and open it in the editor, skipping the toolbar |
+| In the editor | A shield covers up the emails, phones, cards, bank accounts and IDs it finds |
 | `Ctrl+Shift+5` | Record a region · press again to stop |
 | `Ctrl+Shift+6` | Keep what just happened · while "the last few seconds" is on |
 | `Print Screen` | Capture a region · once you take the key from the Snipping Tool |

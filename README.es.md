@@ -92,7 +92,7 @@ incluidas las cinco que gana la de Windows.
 | Copiar el texto de la imagen | **sí, con la tecla T** | sí |
 | Audio del sistema al grabar | **sí, y el micrófono mezclado** | sí |
 | Temporizador antes de capturar | 3 o 5 segundos | **3, 5 o 10 segundos** |
-| Tapar datos personales | a mano, y con mosaico | **automático** |
+| Tapar datos personales | **de un clic, y el mosaico destruye los píxeles** | automático, y difumina |
 
 ## ¿Es esto lo que buscabas?
 
@@ -116,6 +116,7 @@ incluidas las cinco que gana la de Windows.
 |---|---|
 | `Ctrl+Shift+2` | Capturar región |
 | `Win+Shift+L` | Capturar una región y abrirla en el editor, sin pasar por la barra |
+| En el editor | El escudo tapa los correos, teléfonos, tarjetas, cuentas y DNI que encuentre |
 | `Ctrl+Shift+5` | Grabar región · púlsalo otra vez para terminar |
 | `Ctrl+Shift+6` | Quedarte con lo último que pasó · mientras «los últimos segundos» esté encendido |
 | `Impr Pant` | Capturar región · si le quitas la tecla a la Herramienta de Recortes |
