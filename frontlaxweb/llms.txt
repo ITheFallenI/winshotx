@@ -19,6 +19,9 @@ clock stops when the selection is visible on screen.
 - Published in the official winget catalogue: `winget install Mun1to.winshotx`.
 - Also published on the Microsoft Store, where Microsoft signs the package and keeps it
   updated: https://apps.microsoft.com/detail/9P1NKWNRXD6Z
+- Available on Scoop as well: `scoop install extras/winshotx`.
+- Ships a portable build on every release (`winshotx-<version>-portable-x64.zip`): one
+  executable, nothing installed, settings still kept in %APPDATA%.
 
 ## What winshotx does that the Snipping Tool does not
 
@@ -37,12 +40,25 @@ clock stops when the selection is visible on screen.
   click takes the whole window.
 - Copies a GIF or an MP4 as a file **and** as its written path at the same time, so it pastes
   into Slack, Discord or Explorer as a video and into any text box as a path.
+- Covers up personal data with one click: it reads the text in the image with Windows' own
+  OCR and drops a mosaic over the emails, phone numbers, cards, bank accounts and ID numbers
+  it finds. Nothing is matched by shape, everything is validated (a card has to pass its Luhn
+  check digit, an IBAN its mod 97 remainder, a Spanish ID the letter that number is owed), so
+  an invoice does not come out half covered. The mosaic destroys the pixels rather than
+  smudging them, which a blur does not.
+- Records a single window, even when something covers it: Windows composes each window on its
+  own, so a notification landing on top does not end up in the video. The click rings follow
+  the window if it is moved mid-recording.
+- Copies the text out of an image with Windows' own OCR, from a capture or from any frame of
+  a recording.
+- Keeps your latest shots one click away in the tray menu, as thumbnails. There is no history
+  file: the folder is the history, so a shot deleted from outside disappears from there too.
 - Is open source under MIT, with no account and no telemetry.
 
 ## What the Snipping Tool still does better
 
 - It comes preinstalled: winshotx has to be installed.
-- It blurs out personal data automatically; in winshotx you cover it by hand with the mosaic.
+- It speaks every language Windows speaks; winshotx speaks Spanish, English and Chinese.
 - It speaks every language Windows speaks. winshotx speaks Spanish and English.
 
 ## Also in winshotx, if you are comparing feature lists

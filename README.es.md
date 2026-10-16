@@ -65,6 +65,8 @@ firma antes de instalar nada, así que un archivo manipulado no entra.
 |  |  |
 |---|---|
 | 📸 **Captura de región** | Sobre la pantalla congelada, con lupa 6× que da el color exacto en hexadecimal y ajuste a las ventanas: un clic coge la ventana entera. |
+| 🛡️ **Tapar datos personales** | Un clic en el editor encuentra los correos, teléfonos, tarjetas, cuentas bancarias y DNI de la imagen y deja un mosaico encima de cada uno, que destruye los píxeles en vez de emborronarlos. Nada se reconoce por la forma: la tarjeta tiene que pasar su dígito de control, el IBAN su resto y el DNI la letra que le toca, así que una factura no sale medio tapada. |
+| 🪟 **Grabar una sola ventana** | Pulsa `W` con una ventana resaltada y se graba ella, aunque algo la tape: un aviso que salta encima ya no acaba dentro del vídeo. Y si mueves la ventana, los aros de los clics van con ella. |
 | 🎬 **Grabación de la región** | A 15, 30 o 60 fps con Windows Graphics Capture, sin que se cuelen overlays en el vídeo. Un marco rojo fino enseña lo que se está grabando (ámbar en pausa), la barra de debajo dice si está entrando el sonido, y descartar pregunta dos veces. |
 | ✂️ **Editor fotograma a fotograma** | Tira de miniaturas, recorte A/B, reproducción en bucle, escala con proporción bloqueada y control de calidad. |
 | 🔍 **Estudio de grabación** | La cámara se acerca a cada clic y a cada atajo y sigue al ratón mientras está cerca, el puntero se dibuja del tamaño que quieras sin pixelarse (y se encoge en cada clic), y los clics llevan un aro a la medida del vídeo. **Todo se decide al exportar**, sobre fotogramas que ya están en disco, y **todo se ve en vivo en la vista previa del editor** según mueves los deslizadores: lo que ves es lo que sale. |
@@ -73,6 +75,9 @@ firma antes de instalar nada, así que un archivo manipulado no entra.
 | ⏪ **Los últimos segundos** | Graba siempre, tira lo viejo, y con una tecla se queda con los últimos 15, 30 o 60 segundos. Lo bueno de una pantalla casi siempre pasa **antes** de que a nadie se le ocurra grabarla. |
 | 🔊 **Audio del sistema** | Lo que suena por tus altavoces entra en el MP4, cogido de la salida por defecto. Sin instalar nada, y lo sigues oyendo mientras se graba. |
 | ⏱️ **Capturar con espera** | 3 o 5 segundos antes de que se congele la pantalla, con la cuenta atrás en el centro. Es la única forma de fotografiar un menú abierto, porque al pulsar el atajo se cierra. |
+| 🔤 **El texto de una imagen** | `T` sobre la selección, o el botón del editor, lee lo que pone en la imagen con el lector de Windows y lo copia. También en una grabación, sobre el fotograma que estés mirando. |
+| 🗂️ **Tus últimas capturas** | El menú de la bandeja enseña las últimas que guardaste como miniaturas, y un clic vuelve a dejarla en el portapapeles. No hay archivo de historial: la carpeta ES el historial, así que lo que borres por fuera desaparece de ahí solo. |
+| 🌍 **Español, inglés y chino** | Sigue el idioma de Windows, o fijas el que quieras. El chino lo aportó alguien de fuera. |
 | 🌓 **Claro y oscuro** | Sigue el tema de Windows y cambia con él, o fijas el que quieras. |
 | 🔒 **Todo local** | Ni cuenta, ni telemetría, ni subidas. La única llamada a la red es mirar si hay versión nueva en GitHub. |
 
@@ -94,7 +99,7 @@ incluidas las cinco que gana la de Windows.
 | Editor fotograma a fotograma | **sí** | no |
 | Elegir el atajo de teclado | **sí** | no |
 | Dibujar y anotar encima | **seis marcas, con pasos numerados** | bolígrafo, formas y texto |
-| Copiar el texto de la imagen | **sí, con la tecla T** | sí |
+| Copiar el texto de la imagen | **sí, con la tecla T y también dentro del editor** | sí |
 | Audio del sistema al grabar | **sí, y el micrófono mezclado** | sí |
 | Temporizador antes de capturar | 3 o 5 segundos | **3, 5 o 10 segundos** |
 | Tapar datos personales | **de un clic, y el mosaico destruye los píxeles** | automático, y difumina |

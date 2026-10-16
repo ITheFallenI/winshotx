@@ -66,6 +66,10 @@ signature is checked before anything is installed, so a tampered file is rejecte
 |  |  |
 |---|---|
 | 📸 **Region capture** | Over a frozen screenshot, with a 6× magnifier that shows the exact colour in hex, copied with `C` and snapping to system windows: one click takes the whole window. |
+| 🛡️ **Cover up personal data** | One click in the editor finds the emails, phone numbers, cards, bank accounts and ID numbers in the image and drops a mosaic over each one, which destroys the pixels rather than smudging them. Nothing is matched by shape: a card has to pass its check digit, an IBAN its remainder, an ID the letter it is owed, so an invoice does not come out half covered. |
+| 🪟 **Record one window** | Press `W` with a window highlighted and that window is what gets recorded, even when something covers it: a notification landing on top no longer ends up in the video. The click rings follow the window if you move it. |
+| 🛡️ **Cover up personal data** | One click in the editor finds the emails, phone numbers, cards, bank accounts and ID numbers in the image and drops a mosaic over each one, which destroys the pixels rather than smudging them. Nothing is matched by shape: a card has to pass its check digit, an IBAN its remainder, an ID the letter it is owed, so an invoice does not come out half covered. |
+| 🪟 **Record one window** | Press `W` with a window highlighted and that window is what gets recorded, even when something covers it: a notification landing on top no longer ends up in the video. The click rings follow the window if you move it. |
 | 🎬 **Region recording** | 15, 30 or 60 fps through Windows Graphics Capture, with no overlays leaking into the video. A thin red frame shows what is being recorded (amber while paused), the bar below says whether sound is going in, and discarding asks twice. |
 | ✂️ **Frame by frame editor** | Thumbnail strip, A/B trimming, looped playback, cropping the image, scaling with locked aspect ratio and a quality control. |
 | 🔍 **Recording studio** | The camera moves in on every click and shortcut and follows the mouse while it is there, the pointer is drawn as large as you want without pixelating (and squeezes on each click), and clicks get a ring sized to the video. **All of it decided when exporting**, over frames already on disk, and **all of it shown live in the editor preview** as you move the sliders: what you see is what comes out. |
@@ -74,6 +78,12 @@ signature is checked before anything is installed, so a tampered file is rejecte
 | ⏪ **The last few seconds** | It records all the time, drops the old, and one key keeps the last 15, 30 or 60 seconds. The good part of a screen almost always happens **before** anyone thinks of recording it. |
 | 🔊 **System audio** | What comes out of your speakers goes into the MP4, captured straight from the default output. No extra driver, and you keep hearing it while it records. |
 | ⏱️ **Shoot on a timer** | Wait 3 or 5 seconds before the screen freezes, with the countdown in the middle of the screen. It is the only way to photograph an open menu, because pressing the shortcut closes it. |
+| 🔤 **Text out of an image** | `T` on a selection, or the button in the editor, reads the text in the picture with Windows' own OCR and copies it. Works on a recording too, on whichever frame you are looking at. |
+| 🗂️ **Your latest shots** | The tray menu shows the last few you saved as thumbnails, and one click puts one back on the clipboard. There is no history file: the folder is the history, so deleting a shot from outside removes it from there too. |
+| 🌍 **Spanish, English and Chinese** | It follows the Windows language, or you pin the one you want. Chinese came from a contributor. |
+| 🔤 **Text out of an image** | `T` on a selection, or the button in the editor, reads the text in the picture with Windows' own OCR and copies it. Works on a recording too, on whichever frame you are looking at. |
+| 🗂️ **Your latest shots** | The tray menu shows the last few you saved as thumbnails, and one click puts one back on the clipboard. There is no history file: the folder is the history, so deleting a shot from outside removes it from there too. |
+| 🌍 **Spanish, English and Chinese** | It follows the Windows language, or you pin the one you want. Chinese came from a contributor. |
 | 🌓 **Light and dark** | It follows the Windows theme and changes with it, or you pin the one you want. |
 | 🔒 **Everything stays local** | No account, no telemetry, no uploads. The only network call is checking GitHub for a new version. |
 
