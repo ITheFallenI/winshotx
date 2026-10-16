@@ -72,6 +72,8 @@ export function esDeEstaPantalla(rect: Rect, monitor: Origen): boolean {
 export interface VentanaDelSistema {
   title: string;
   rect: Rect;
+  /** Su identificador en Windows, para poder grabarla a ella y no al hueco donde está. */
+  hwnd: number;
 }
 
 /**
@@ -89,7 +91,7 @@ export function ventanasDeEstaPantalla(
   altoCss: number,
 ): VentanaDelSistema[] {
   return ventanas
-    .map((v) => ({ title: v.title, rect: aPantalla(v.rect, monitor, escala) }))
+    .map((v) => ({ ...v, rect: aPantalla(v.rect, monitor, escala) }))
     .filter(
       (v) =>
         v.rect.width > 8 &&

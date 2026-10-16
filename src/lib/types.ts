@@ -22,6 +22,8 @@ export interface MonitorInfo {
 export interface WindowRect {
   title: string;
   rect: Rect;
+  /** El identificador de la ventana en Windows, para poder grabarla a ella. */
+  hwnd: number;
 }
 
 /** Que pasa al soltar el raton sobre la region. Son los dos perfiles de trabajo. */
@@ -88,6 +90,14 @@ export interface RecordOptions {
   highlightClicks: boolean;
   /** Enseñar los atajos que se pulsan. Solo atajos, nunca una tecla suelta. */
   highlightKeys: boolean;
+  /**
+   * La ventana que se graba, cuando se graba UNA ventana y no un trozo de pantalla.
+   *
+   * Con esto puesto, lo que pase por delante no sale en el vídeo: Windows compone cada
+   * ventana por su cuenta y se le pide esa. Sin esto, se graba la región, que es lo de
+   * siempre y lo que vale para grabar varias cosas a la vez.
+   */
+  window?: number;
 }
 
 export interface SessionInfo {

@@ -130,11 +130,33 @@ impl GraphicsCaptureApiHandler for RegionCapture {
         self.last_emit = Some(now);
 
         let (x1, y1, x2, y2) = self.flags.crop;
-        let buffer = frame.buffer_crop(x1, y1, x2, y2)?;
+        // Grabando una VENTANA, su tamanno puede cambiar mientras se graba, y el
+        // codificador necesita el mismo tamanno en todos los fotogramas. Se coge lo que
+        // haya y lo que falte se queda en negro; si la ventana se ha ido del todo, este
+        // fotograma se salta.
+        let (ancho_real, alto_real) = (frame.width(), frame.height());
+        let (hasta_x, hasta_y) = (x2.min(ancho_real), y2.min(alto_real));
+        if x1 >= hasta_x || y1 >= hasta_y {
+            return Ok(());
+        }
+        let buffer = frame.buffer_crop(x1, y1, hasta_x, hasta_y)?;
         // El crate necesita un Vec de apoyo por si la textura viene con relleno de fila.
         // A un bufer devuelto si lo hay, que ya tiene sus paginas puestas; si no, a uno nuevo.
         let mut data = self.flags.reciclados.coger();
-        data.extend_from_slice(buffer.as_nopadding_buffer(&mut self.scratch));
+        let pedido = ((x2 - x1) as usize, (y2 - y1) as usize);
+        let hay = ((hasta_x - x1) as usize, (hasta_y - y1) as usize);
+        let sin_relleno = buffer.as_nopadding_buffer(&mut self.scratch);
+        if hay == pedido {
+            data.extend_from_slice(sin_relleno);
+        } else {
+            data.resize(pedido.0 * pedido.1 * 4, 0);
+            for fila in 0..hay.1 {
+                let desde = fila * hay.0 * 4;
+                let hasta = desde + hay.0 * 4;
+                let destino = fila * pedido.0 * 4;
+                data[destino..destino + hay.0 * 4].copy_from_slice(&sin_relleno[desde..hasta]);
+            }
+        }
 
         let elapsed = now.duration_since(self.flags.start).as_millis() as u64;
         let ts_ms = elapsed.saturating_sub(self.flags.paused_ms.load(Ordering::Relaxed));
@@ -173,6 +195,70 @@ pub fn start(
 
     let settings = Settings::new(
         monitor,
+        if capture_cursor {
+            CursorCaptureSettings::WithCursor
+        } else {
+            CursorCaptureSettings::WithoutCursor
+        },
+        DrawBorderSettings::WithoutBorder,
+        SecondaryWindowSettings::Default,
+        MinimumUpdateIntervalSettings::Default,
+        DirtyRegionSettings::Default,
+        ColorFormat::Bgra8,
+        flags,
+    );
+
+    RegionCapture::start_free_threaded(settings).map_err(|e| AppError::Msg(e.to_string()))
+}
+
+/// Arranca la captura de UNA VENTANA, se vea o no se vea.
+///
+/// Es lo que no se puede hacer capturando la pantalla y recortando: ahi lo que se graba es
+/// lo que hay delante, asi que cualquier cosa que pase por encima (un aviso, el explorador,
+/// otra ventana) acaba dentro del video. Windows compone cada ventana por su cuenta, y
+/// pidiendole ESA, lo de delante no sale.
+///
+/// **El tamanno se clava al que tiene al empezar.** Una ventana se puede redimensionar
+/// mientras se graba y el codificador necesita que todos los fotogramas midan igual: si
+/// crece, se graba el trozo de siempre; si encoge, lo que falta se queda en negro.
+pub fn start_window(
+    hwnd: isize,
+    capture_cursor: bool,
+    fps: u32,
+    flags_base: CaptureFlags,
+) -> Result<Control> {
+    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+
+    let ventana = HWND(hwnd as *mut core::ffi::c_void);
+    // El tamanno que se le pide a Windows es el del marco REAL (el que compone el
+    // escritorio), no el de `GetWindowRect`, que incluye el borde invisible de las sombras
+    // y dejaria franjas transparentes a los lados.
+    let mut marco = RECT::default();
+    let medida = unsafe {
+        DwmGetWindowAttribute(
+            ventana,
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            (&raw mut marco).cast(),
+            std::mem::size_of::<RECT>() as u32,
+        )
+    };
+    if medida.is_err() {
+        return Err(AppError::Msg("esa ventana ya no está".into()));
+    }
+    let ancho = (marco.right - marco.left).max(1) as u32;
+    let alto = (marco.bottom - marco.top).max(1) as u32;
+
+    let flags = CaptureFlags {
+        // Entera: el recorte dentro de la ventana lo hace despues el editor, que ahi si se
+        // puede deshacer.
+        crop: (0, 0, ancho, alto),
+        min_interval_ms: (1000 / fps.max(1)).saturating_sub(1) as u64,
+        ..flags_base
+    };
+
+    let settings = Settings::new(
+        windows_capture::window::Window::from_raw_hwnd(ventana.0),
         if capture_cursor {
             CursorCaptureSettings::WithCursor
         } else {
@@ -315,6 +401,155 @@ mod tests {
             .bgra
             .chunks_exact(4)
             .any(|p| p[0] > 200 && p[1] < 60 && p[2] > 200)
+    }
+
+    /// Graba LA VENTANA medio segundo y dice si lo que sale es suyo.
+    ///
+    /// Igual que `sale_el_magenta`, pero pidiendole a Windows esa ventana en vez de un
+    /// trozo de pantalla. Se mueve desde este hilo por lo mismo: es el que la creo.
+    fn graba_la_ventana(ventana: isize, region: Rect) -> Option<CapturedFrame> {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+        };
+        let hwnd = HWND(ventana as *mut core::ffi::c_void);
+        let mut paso = 0;
+        let (sender, receiver) = channel::<CapturedFrame>();
+        let stop = Arc::new(AtomicBool::new(false));
+        let control = start_window(
+            ventana,
+            false,
+            30,
+            CaptureFlags {
+                sender,
+                crop: (0, 0, 0, 0),
+                stop: stop.clone(),
+                pause: Arc::new(AtomicBool::new(false)),
+                paused_ms: Arc::new(AtomicU64::new(0)),
+                min_interval_ms: 0,
+                start: Instant::now(),
+                reciclados: Reciclados::default(),
+            },
+        )
+        .expect("no se ha podido arrancar la captura de la ventana");
+
+        let hasta = Instant::now() + Duration::from_millis(600);
+        let mut ultimo = None;
+        while Instant::now() < hasta {
+            paso = (paso + 1) % 2;
+            let _ = unsafe {
+                SetWindowPos(
+                    hwnd,
+                    None,
+                    region.x + paso,
+                    region.y,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+            };
+            if let Ok(frame) = receiver.recv_timeout(Duration::from_millis(30)) {
+                ultimo = Some(frame);
+            }
+        }
+        stop.store(true, Ordering::Relaxed);
+        let _ = control.stop();
+        ultimo
+    }
+
+    /// Cuantos pixeles de ese fotograma son magenta, en tanto por ciento.
+    fn cuanto_magenta(frame: &CapturedFrame) -> f32 {
+        let total = frame.bgra.len() / 4;
+        if total == 0 {
+            return 0.0;
+        }
+        let magenta = frame
+            .bgra
+            .chunks_exact(4)
+            .filter(|p| p[0] > 200 && p[1] < 60 && p[2] > 200)
+            .count();
+        magenta as f32 * 100.0 / total as f32
+    }
+
+    /// **Lo que promete grabar una ventana: que lo de delante no sale.**
+    ///
+    /// Se abren dos ventanas en el mismo sitio, una magenta debajo y una verde encima que
+    /// la tapa entera. Grabando la PANTALLA ahi solo se ve verde, que es el problema de
+    /// siempre: un aviso que salta encima se cuela en el video. Grabando la VENTANA
+    /// magenta, Windows la compone aparte y lo que sale es magenta.
+    ///
+    ///     cargo test --lib grabar_una_ventana -- --ignored --nocapture
+    #[test]
+    #[ignore = "abre dos ventanas en la pantalla y graba un trozo: se corre a mano"]
+    fn grabar_una_ventana_tapada_la_graba_a_ella_y_no_a_lo_de_delante() {
+        let region = Rect { x: 0, y: 0, width: 160, height: 120 };
+        let abajo = ventana_magenta(region);
+        std::thread::sleep(Duration::from_millis(300));
+
+        let suyo = graba_la_ventana(abajo, region).expect("sin fotogramas de la ventana");
+        let antes = cuanto_magenta(&suyo);
+        println!("sin nada delante: {antes:.1}% magenta");
+        assert!(antes > 50.0, "la ventana no se graba ni estando a la vista: {antes:.1}%");
+
+        // Y ahora una verde del mismo tamanno encima, que la tapa entera.
+        let encima = ventana_tapadera(region);
+        std::thread::sleep(Duration::from_millis(400));
+
+        // La pantalla de esa esquina ya no tiene magenta: lo de delante manda.
+        let de_la_pantalla = sale_el_magenta(region, abajo);
+
+        let tapada = graba_la_ventana(abajo, region).expect("sin fotogramas con la tapadera");
+        let despues = cuanto_magenta(&tapada);
+        println!("con la verde delante: {despues:.1}% magenta");
+
+        unsafe {
+            let _ = DestroyWindow(HWND(encima as *mut core::ffi::c_void));
+            let _ = DestroyWindow(HWND(abajo as *mut core::ffi::c_void));
+        }
+
+        assert!(
+            !de_la_pantalla,
+            "la tapadera no esta tapando: esta prueba no prueba nada asi"
+        );
+        assert!(
+            despues > 50.0,
+            "tapada, la grabacion de la ventana ha salido con {despues:.1}% de lo suyo: \
+             se esta grabando lo de delante y no la ventana"
+        );
+    }
+
+    /// Una ventana verde del mismo tamanno, para ponerla encima.
+    fn ventana_tapadera(region: Rect) -> isize {
+        const CLASE_VERDE: &[u16] = &[
+            b'w' as u16, b's' as u16, b'x' as u16, b't' as u16, b'a' as u16, b'p' as u16, 0,
+        ];
+        let instancia = unsafe { GetModuleHandleW(None) }.expect("sin instancia");
+        let clase = WNDCLASSW {
+            hInstance: instancia.into(),
+            lpszClassName: PCWSTR(CLASE_VERDE.as_ptr()),
+            lpfnWndProc: Some(procedimiento),
+            hbrBackground: unsafe { CreateSolidBrush(COLORREF(0x0000_FF00)) },
+            ..Default::default()
+        };
+        let _ = unsafe { RegisterClassW(&clase) };
+        let hwnd = unsafe {
+            CreateWindowExW(
+                WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                PCWSTR(CLASE_VERDE.as_ptr()),
+                PCWSTR::null(),
+                WS_POPUP,
+                region.x,
+                region.y,
+                region.width as i32,
+                region.height as i32,
+                None,
+                None,
+                Some(instancia.into()),
+                None,
+            )
+        }
+        .expect("no se ha podido abrir la tapadera");
+        let _ = unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+        hwnd.0 as isize
     }
 
     /// La prueba de que el arreglo sirve de algo: una ventana marcada como fuera de la

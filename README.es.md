@@ -132,6 +132,7 @@ incluidas las cinco que gana la de Windows.
 | `A` | Anclar la selección: se queda flotando encima de todo, en su sitio |
 | `T` | Copiar el texto de la selección, leído por el lector de Windows |
 | `G` / `V` | Grabar la selección como GIF / vídeo |
+| `W` | Grabar **solo la ventana de debajo del cursor**, aunque algo la tape |
 | `Ctrl+A` | Seleccionar el monitor entero |
 | `←↑→↓` | Mover la selección · con `Shift` de 10 en 10 · con `Alt` redimensiona |
 | `Esc` | Cancelar |

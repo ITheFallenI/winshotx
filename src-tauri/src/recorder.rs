@@ -34,6 +34,13 @@ pub struct RecordOptions {
     /// suelta no sale nunca, para que una contrasenna escrita no acabe dentro del video.
     #[serde(default)]
     pub highlight_keys: bool,
+    /// La ventana que se graba, si se graba UNA ventana y no un trozo de pantalla.
+    ///
+    /// Con esto puesto se le pide a Windows esa ventana en concreto, asi que lo que pase
+    /// por delante no sale en el video. Sin esto, se graba la region de la pantalla, que
+    /// es lo de siempre y lo que vale para grabar varias cosas a la vez.
+    #[serde(default)]
+    pub window: Option<isize>,
 }
 
 /// Lo que la barra ensenna, cinco veces por segundo.
@@ -240,6 +247,9 @@ pub fn start(app: &AppHandle, region: Rect, options: RecordOptions) -> Result<Se
 
     let fps = options.fps.clamp(5, 60);
     let origin = monitor_origin(app, region);
+    // Grabar UNA ventana es otro camino desde aqui abajo: se le pide a Windows esa ventana
+    // y no un trozo de pantalla, asi que lo que pase por delante no sale.
+    let ventana = options.window.filter(|h| *h != 0);
 
     let session_seed = SessionData {
         id: id.clone(),
@@ -427,22 +437,20 @@ pub fn start(app: &AppHandle, region: Rect, options: RecordOptions) -> Result<Se
         Ok(session)
     });
 
-    let control = win::start(
-        region,
-        origin,
-        false,
-        fps,
-        CaptureFlags {
-            sender,
-            crop: (0, 0, 0, 0),
-            stop: stop.clone(),
-            pause: pause.clone(),
-            paused_ms: paused_ms.clone(),
-            min_interval_ms: 0,
-            start: reloj_inicio,
-            reciclados,
-        },
-    )?;
+    let flags_base = CaptureFlags {
+        sender,
+        crop: (0, 0, 0, 0),
+        stop: stop.clone(),
+        pause: pause.clone(),
+        paused_ms: paused_ms.clone(),
+        min_interval_ms: 0,
+        start: reloj_inicio,
+        reciclados,
+    };
+    let control = match ventana {
+        Some(hwnd) => win::start_window(hwnd, false, fps, flags_base)?,
+        None => win::start(region, origin, false, fps, flags_base)?,
+    };
 
     // El marco alrededor de lo que se graba. Que no se pueda abrir no impide grabar.
     let marco = match crate::platform::marco::Marco::abrir(region, grosor_del_marco(region)) {

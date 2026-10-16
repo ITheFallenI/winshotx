@@ -467,6 +467,7 @@ export const EN: Record<string, string> = {
   "hace {minutos} min": "{minutos} min ago",
   "hace {horas} h": "{horas} h ago",
   "hace {dias} días": "{dias} days ago",
+  "W: grabar solo esta ventana": "W: record just this window",
   "Copiar el texto de la imagen": "Copy the text in the image",
   "Texto copiado: {palabras} palabras": "Text copied: {palabras} words",
   "Tapar datos personales": "Cover up personal data",

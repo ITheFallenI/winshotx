@@ -91,9 +91,9 @@ describe("de que pantalla es una region", () => {
 
 describe("las ventanas del sistema que se ven en esta pantalla", () => {
   const VENTANAS = [
-    { title: "en el principal", rect: { x: 200, y: 100, width: 800, height: 600 } },
-    { title: "en el de la izquierda", rect: { x: -900, y: 200, width: 600, height: 900 } },
-    { title: "invisible de un pixel", rect: { x: 300, y: 300, width: 1, height: 1 } },
+    { title: "en el principal", hwnd: 0, rect: { x: 200, y: 100, width: 800, height: 600 } },
+    { title: "en el de la izquierda", hwnd: 0, rect: { x: -900, y: 200, width: 600, height: 900 } },
+    { title: "invisible de un pixel", hwnd: 0, rect: { x: 300, y: 300, width: 1, height: 1 } },
   ];
 
   it("se queda con las que asoman por aqui y las trae a coordenadas de esta pantalla", () => {
@@ -115,15 +115,15 @@ describe("las ventanas del sistema que se ven en esta pantalla", () => {
   });
 
   it("una ventana que asoma a medias por el borde se queda", () => {
-    const asoma = [{ title: "a medias", rect: { x: -100, y: 100, width: 400, height: 300 } }];
+    const asoma = [{ title: "a medias", hwnd: 0, rect: { x: -100, y: 100, width: 400, height: 300 } }];
     expect(ventanasDeEstaPantalla(asoma, PRINCIPAL, 1, 1920, 1200)).toHaveLength(1);
   });
 });
 
 describe("que ventana coge el punto", () => {
   const APILADAS = [
-    { title: "la de detras", rect: { x: 0, y: 0, width: 1000, height: 800 } },
-    { title: "la de delante", rect: { x: 100, y: 100, width: 300, height: 200 } },
+    { title: "la de detras", hwnd: 0, rect: { x: 0, y: 0, width: 1000, height: 800 } },
+    { title: "la de delante", hwnd: 0, rect: { x: 100, y: 100, width: 300, height: 200 } },
   ];
 
   it("coge la mas pequenna, que es la que esta encima", () => {

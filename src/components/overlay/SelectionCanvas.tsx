@@ -24,6 +24,7 @@ import {
   esDeEstaPantalla,
   ventanaBajoElPunto,
   ventanasDeEstaPantalla,
+  type VentanaDelSistema,
 } from "../../lib/pantallas";
 import {
   EVENTS,
@@ -282,10 +283,14 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     [snapTargets],
   );
 
+  /** La ventana resaltada, en una referencia: la lee el oyente del teclado. */
+  const hoveredRef = useRef<VentanaDelSistema | null>(null);
+
   const hovered = useMemo(() => {
     if (selection || mode.kind !== "idle" || pantallaEntera) return null;
     return windowAt(cursor.x, cursor.y);
   }, [windowAt, cursor, selection, mode.kind, pantallaEntera]);
+  hoveredRef.current = hovered;
 
   /**
    * La ventana overlay se reutiliza entre capturas (ver `windows_mgr::open_overlays`): no
@@ -506,6 +511,36 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
   const alEditorRef = useRef(false);
   alEditorRef.current = alEditor;
 
+  /**
+   * Graba LA VENTANA de debajo del cursor, no el trozo de pantalla donde está.
+   *
+   * La diferencia se ve en cuanto algo pasa por delante: grabando la región, un aviso que
+   * salta encima acaba dentro del vídeo; pidiéndole a Windows esa ventana, no.
+   */
+  const grabarVentana = useCallback(
+    async (ventana: VentanaDelSistema, format: "gif" | "video") => {
+      if (!payload || busy || !ventana.hwnd) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await startRecording(toPhysical(ventana.rect), {
+          format,
+          fps: payload.settings.fps,
+          audio: payload.settings.recordAudio && format === "video",
+          microphone: payload.settings.recordMicrophone && format === "video",
+          highlightClicks: payload.settings.highlightClicks,
+          highlightKeys: payload.settings.highlightKeys,
+          window: ventana.hwnd,
+        });
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [payload, busy, toPhysical],
+  );
+
   const grabarRegion = useCallback(
     async (rect: Rect, format: "gif" | "video") => {
       if (!payload || busy) return;
@@ -628,6 +663,14 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
         difundir({ mode: "gif" });
       } else if (key === "v") {
         difundir({ mode: "video" });
+      } else if (key === "w") {
+        // Grabar SOLO la ventana de debajo, se tape o no se tape. Es una tecla y no un
+        // boton porque solo tiene sentido mientras hay una ventana resaltada debajo del
+        // raton, que es justo cuando no se esta mirando ninguna barra.
+        const debajo = hoveredRef.current;
+        if (!debajo?.hwnd) return;
+        e.preventDefault();
+        void grabarVentana(debajo, modoRef.current === "gif" ? "gif" : "video");
       } else if (key === "r") {
         // La misma zona otra vez, sin volver a arrastrar. Solo responde la pantalla donde
         // cayo aquella region: en las demas no hay nada que repetir, asi que no hacen nada
@@ -895,6 +938,16 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
               }`}
             >
               {highlight.title}
+              {/*
+                La pista de la tecla, solo grabando y solo si Windows nos da esa ventana.
+                Va pegada al titulo porque es ahi donde se esta mirando: una leyenda en una
+                esquina de la pantalla no la lee nadie con el raton al otro lado.
+              */}
+              {modo !== "still" && highlight.hwnd > 0 && (
+                <span className="ml-2 rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {t("W: grabar solo esta ventana")}
+                </span>
+              )}
             </span>
           )}
         </div>

@@ -133,6 +133,7 @@ has the nineteen rows, including the five the Snipping Tool wins.
 | `T` | Copy the text inside the selection, read by Windows' own OCR |
 | `C` | Copy the colour under the cursor, the one the loupe is showing |
 | `G` / `V` | Record the selection as GIF / video |
+| `W` | Record **only the window under the cursor**, even when something covers it |
 | `Ctrl+A` | Select the whole monitor |
 | `←↑→↓` | Move the selection · `Shift` for steps of 10 · `Alt` resizes |
 | `Esc` | Cancel |

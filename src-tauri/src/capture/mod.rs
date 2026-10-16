@@ -62,6 +62,10 @@ impl MonitorInfo {
 pub struct WindowRect {
     pub title: String,
     pub rect: Rect,
+    /// El identificador de la ventana en Windows, para poder grabarla a ella y no al
+    /// trozo de pantalla donde esta. Cero si no se ha podido leer.
+    #[serde(default)]
+    pub hwnd: isize,
 }
 
 /// Pantalla congelada de un monitor: es el fondo sobre el que se selecciona.
@@ -279,6 +283,7 @@ pub fn window_rects() -> Vec<WindowRect> {
             }
             Some(WindowRect {
                 title,
+                hwnd: w.id().map(|id| id as isize).unwrap_or(0),
                 rect: Rect {
                     x: w.x().ok()?,
                     y: w.y().ok()?,
