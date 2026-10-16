@@ -442,6 +442,14 @@ export interface TrayMenuState {
 }
 
 /** Las entradas del menú de la bandeja, con los mismos nombres que entiende Rust. */
+/** Una captura que ya está guardada, para volver a ella desde el menú de la bandeja. */
+export interface CapturaReciente {
+  path: string;
+  nombre: string;
+  /** Hace cuántos segundos se guardó. */
+  haceSegundos: number;
+}
+
 export type TrayMenuAction =
   | "capture"
   | "record"

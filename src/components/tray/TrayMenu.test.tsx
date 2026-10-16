@@ -123,3 +123,39 @@ describe("al volver a abrirse", () => {
     );
   });
 });
+
+describe("las ultimas capturas", () => {
+  const FOTOS = [
+    { path: "C:/capturas/winshotx-2026-10-16-020301.png", nombre: "winshotx-2026-10-16-020301.png", haceSegundos: 30 },
+    { path: "C:/capturas/winshotx-2026-10-15-193000.png", nombre: "winshotx-2026-10-15-193000.png", haceSegundos: 7200 },
+  ];
+
+  it("salen como miniaturas y al pulsar una se copia esa", async () => {
+    responde("ultimas_capturas", FOTOS);
+    await abrirMenu();
+    const boton = await screen.findByLabelText(`Copiar ${FOTOS[1].nombre}`);
+    fireEvent.click(boton);
+    await waitFor(() =>
+      expect(llamadas.some((l) => l.comando === "copiar_captura")).toBe(true),
+    );
+    const args = llamadas.find((l) => l.comando === "copiar_captura")?.args as { path: string };
+    expect(args.path).toBe(FOTOS[1].path, "tiene que copiar la que se ha pulsado, no la primera");
+  });
+
+  it("sin nada guardado todavia, el menu no ensenna la seccion", async () => {
+    responde("ultimas_capturas", []);
+    await abrirMenu();
+    expect(screen.queryByText("Últimas capturas")).toBeNull();
+  });
+
+  /**
+   * El historial es lo ultimo del menu y no puede tumbar lo primero: si la carpeta esta
+   * en un disco que no responde, capturar y grabar tienen que seguir ahi.
+   */
+  it("si el historial falla, el menu sigue entero", async () => {
+    responde("ultimas_capturas", null);
+    await abrirMenu();
+    expect(screen.getByText("Capturar región")).toBeInTheDocument();
+    expect(screen.getByText("Grabar región")).toBeInTheDocument();
+  });
+});

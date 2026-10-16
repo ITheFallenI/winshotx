@@ -606,6 +606,70 @@ pub async fn tapar_datos(app: AppHandle, session_id: String, index: usize) -> Re
     })
 }
 
+/// Una captura que ya está en el disco, para poder volver a ella sin repetirla.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CapturaReciente {
+    pub path: String,
+    pub nombre: String,
+    /// Hace cuántos segundos se guardó. El frontend lo escribe como «hace 3 min».
+    pub hace_segundos: u64,
+}
+
+/// Las últimas capturas guardadas, de la más nueva a la más vieja.
+///
+/// **El historial no se guarda en ningún sitio: se lee de la carpeta.** Una lista aparte
+/// sería otro archivo de estado que mantener, que se desincroniza en cuanto alguien borra
+/// o mueve una captura por fuera, y que habría que limpiar. Lo que hay en la carpeta ES lo
+/// que hay, y si el usuario borra un archivo desaparece de aquí sin que nadie haga nada.
+///
+/// Lo que solo se copió al portapapeles y nunca se guardó no sale, y es correcto que no
+/// salga: no existe en ninguna parte.
+#[tauri::command]
+pub async fn ultimas_capturas(app: AppHandle, cuantas: usize) -> Result<Vec<CapturaReciente>> {
+    let directory = PathBuf::from(app.state::<AppState>().settings.read().save_directory.clone());
+    let Ok(entradas) = std::fs::read_dir(&directory) else {
+        // Que la carpeta no exista todavía no es un error: es que no se ha guardado nada.
+        return Ok(Vec::new());
+    };
+    let ahora = std::time::SystemTime::now();
+    let mut fotos: Vec<(std::time::SystemTime, PathBuf)> = entradas
+        .flatten()
+        .filter_map(|e| {
+            let ruta = e.path();
+            let extension = ruta.extension()?.to_string_lossy().to_lowercase();
+            if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "webp") {
+                return None;
+            }
+            Some((e.metadata().ok()?.modified().ok()?, ruta))
+        })
+        .collect();
+    fotos.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(fotos
+        .into_iter()
+        .take(cuantas.clamp(1, 20))
+        .map(|(cuando, ruta)| CapturaReciente {
+            nombre: ruta
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default(),
+            hace_segundos: ahora
+                .duration_since(cuando)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            path: ruta.to_string_lossy().to_string(),
+        })
+        .collect())
+}
+
+/// Vuelve a dejar en el portapapeles una captura que ya estaba guardada.
+#[tauri::command]
+pub async fn copiar_captura(path: String) -> Result<()> {
+    let image = image::open(&path)?.to_rgba8();
+    let bytes = png::to_bytes(&image)?;
+    crate::platform::clipboard::copy_image(&image, &bytes)
+}
+
 /// Copia al portapapeles el texto que hay en el fotograma que se está viendo.
 ///
 /// La tecla `T` ya hacía esto **en la captura**, antes de llegar al editor, y ahí se

@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   CacheStats,
+  CapturaReciente,
   CaptureFlow,
   ExportRequest,
   ExportResult,
@@ -100,6 +101,13 @@ export const sessionStudio = (sessionId: string) =>
 /** La cámara del zoom en cada fotograma, con ese zoom y ese recorte. */
 export const sessionCamera = (sessionId: string, zoom: number, crop: Recorte | null) =>
   invoke<MuestraCamara[]>("session_camera", { sessionId, zoom, crop });
+
+/** Las últimas capturas guardadas, leídas de la carpeta, de la más nueva a la más vieja. */
+export const ultimasCapturas = (cuantas: number) =>
+  invoke<CapturaReciente[]>("ultimas_capturas", { cuantas });
+
+/** Vuelve a dejar en el portapapeles una captura que ya estaba guardada. */
+export const copiarCaptura = (path: string) => invoke<void>("copiar_captura", { path });
 
 /**
  * Copia el texto que hay escrito en el fotograma, leído por el motor de Windows.
