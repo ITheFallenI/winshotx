@@ -12,7 +12,7 @@
 //! número. Sin eso, taparía la mitad de los números de cualquier factura, y una herramienta
 //! que tapa de más se apaga el primer día.
 //!
-//! No lleva expresiones regulares a propósito: el instalador entero pesa 2,57 MB y el
+//! No lleva expresiones regulares a propósito: el instalador entero pesa 2,58 MB y el
 //! paquete de expresiones regulares de Rust ocupa casi la mitad de eso. Lo que hay aquí son
 //! funciones que se leen en voz alta.
 
@@ -406,7 +406,7 @@ mod tests {
             "Archivo Editar Ver Ayuda",
             "Total 1.234,56 euros IVA incluido",
             "Pedido 2026 10 16 entregado",
-            "winshotx 0.2.28 ocupa 2,57 MB",
+            "winshotx 0.2.28 ocupa 2,58 MB",
             "Lunes 16 de octubre de 2026",
             "127.0.0.1:5173",
         ];
