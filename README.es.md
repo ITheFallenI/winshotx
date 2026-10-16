@@ -43,7 +43,12 @@ Otros dos caminos, la misma app:
 
 ```
 winget install Mun1to.winshotx
+scoop install extras/winshotx
 ```
+
+o el **portable** `winshotx-<versión>-portable-x64.zip` de
+[Releases](../../releases): un ejecutable, sin instalar nada, con los ajustes igualmente en
+`%APPDATA%\winshotx`.
 
 o la [**Microsoft Store**](https://apps.microsoft.com/detail/9P1NKWNRXD6Z), donde el paquete lo
 firma Microsoft y lo mantiene al día la propia Store, así que el actualizador de la app se aparta.

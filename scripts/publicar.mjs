@@ -128,7 +128,31 @@ const latest = {
 const destino = join(nsis, "latest.json");
 writeFileSync(destino, JSON.stringify(latest, null, 2));
 
-const activos = [instalador, estable, firma, destino];
+// El portable: el .exe suelto dentro de un zip.
+//
+// Es lo que pide Scoop, que prefiere descomprimir a ejecutar instaladores ajenos, y de paso
+// es la version que buscan los que no quieren instalar nada. **Tiene que salir en TODAS las
+// versiones**: el manifiesto de Scoop lleva un `autoupdate` que espera este archivo con este
+// nombre exacto, asi que la primera version que no lo traiga deja a Scoop sirviendo la
+// anterior sin que nadie se entere.
+const portable = join(nsis, `winshotx-${version}-portable-x64.zip`);
+const exe = join(target, "release", "winshotx.exe");
+if (!existsSync(exe)) {
+  console.error(`No esta el binario en ${exe}. Compila antes de publicar.`);
+  process.exit(1);
+}
+execFileSync(
+  "powershell",
+  [
+    "-NoProfile",
+    "-Command",
+    `Remove-Item -Force '${portable}' -ErrorAction SilentlyContinue; ` +
+      `Compress-Archive -Path '${exe}' -DestinationPath '${portable}' -CompressionLevel Optimal`,
+  ],
+  { stdio: "inherit" },
+);
+
+const activos = [instalador, estable, firma, destino, portable];
 console.log(`winshotx ${version} preparado:`);
 for (const a of activos) console.log(`  ${a}`);
 

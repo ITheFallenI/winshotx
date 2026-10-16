@@ -44,7 +44,12 @@ Three other ways, same app:
 
 ```
 winget install Mun1to.winshotx
+scoop install extras/winshotx
 ```
+
+or the **portable** `winshotx-<version>-portable-x64.zip` from
+[Releases](../../releases): one executable, nothing installed, settings still in
+`%APPDATA%\winshotx`.
 
 or from the [**Microsoft Store**](https://apps.microsoft.com/detail/9P1NKWNRXD6Z), where Microsoft signs the package and the Store keeps
 it updated, so the app's own updater stays out of the way.
