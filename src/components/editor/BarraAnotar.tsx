@@ -1,4 +1,14 @@
-import { ArrowUpRight, Circle, Highlighter, ShieldCheck, Square, Type, Undo2, X } from "lucide-react";
+import {
+  ArrowUpRight,
+  Circle,
+  Highlighter,
+  ShieldCheck,
+  Square,
+  TextSelect,
+  Type,
+  Undo2,
+  X,
+} from "lucide-react";
 import { COLORES, type Herramienta } from "../../lib/anotaciones";
 import { useT } from "../../lib/i18n";
 
@@ -25,6 +35,8 @@ interface Props {
   onBorrarTodo: () => void;
   /** Tapar de una vez los datos personales que haya en la imagen. */
   onTaparDatos: () => void;
+  /** Copiar el texto que hay escrito en la imagen. */
+  onCopiarTexto: () => void;
   /** Mientras el lector de texto trabaja, que son unas decimas sobre una captura grande. */
   buscandoDatos: boolean;
 }
@@ -54,6 +66,7 @@ export function BarraAnotar({
   onDeshacer,
   onBorrarTodo,
   onTaparDatos,
+  onCopiarTexto,
   buscandoDatos,
 }: Props) {
   const t = useT();
@@ -118,6 +131,19 @@ export function BarraAnotar({
           deja un mosaico encima de cada uno. Lo que deja son marcas normales, asi que se
           ven antes de exportar y se quitan con Ctrl+Z.
         */}
+        {/*
+          Leer el texto de la imagen ya existia en la captura, con la tecla T, y se
+          quedaba fuera del editor: para copiar una frase de una captura que ya estabas
+          editando habia que salir y volver a capturar lo mismo. De un video, directamente
+          no habia forma.
+        */}
+        <Boton
+          icono={TextSelect}
+          etiqueta={t("Copiar el texto de la imagen")}
+          activa={false}
+          onClick={onCopiarTexto}
+          apagada={buscandoDatos}
+        />
         <Boton
           icono={ShieldCheck}
           etiqueta={t("Tapar datos personales")}

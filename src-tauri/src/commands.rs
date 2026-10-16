@@ -606,6 +606,25 @@ pub async fn tapar_datos(app: AppHandle, session_id: String, index: usize) -> Re
     })
 }
 
+/// Copia al portapapeles el texto que hay en el fotograma que se está viendo.
+///
+/// La tecla `T` ya hacía esto **en la captura**, antes de llegar al editor, y ahí se
+/// quedaba: una vez dentro, para copiar un trozo de texto de la imagen había que salir,
+/// capturar otra vez el mismo sitio y pulsar `T`. Y en una grabación no había forma
+/// ninguna, porque de un vídeo no se sale a capturar el fotograma que acabas de ver.
+#[tauri::command]
+pub async fn copiar_texto(app: AppHandle, session_id: String, index: usize) -> Result<String> {
+    let session = session_of(&app, &session_id)?;
+    let image = record::read_frame(&session, index)?;
+    let bytes = png::to_bytes(&image)?;
+    let texto = crate::platform::ocr::leer_texto(&bytes)?;
+    if texto.trim().is_empty() {
+        return Err(AppError::Msg("No he encontrado texto en esta imagen.".into()));
+    }
+    crate::platform::clipboard::copy_text(&texto)?;
+    Ok(texto)
+}
+
 /// La marca que tapa esas palabras: su caja envolvente, con margen, de 0 a 1.
 fn caja_de(
     linea: &[crate::sensibles::Palabra],

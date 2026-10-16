@@ -11,6 +11,7 @@ import {
   sessionCamera,
   sessionFrames,
   sessionInfo,
+  copiaTexto,
   sessionStudio,
   tapaDatos,
 } from "../../lib/ipc";
@@ -222,6 +223,22 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
       setAnotaciones((previas) => [...previas, ...marcas]);
       const detalle = resumen.map(([clase, cuantos]) => `${cuantos} ${clase}`).join(", ");
       setAviso(t("Tapado: {detalle}", { detalle }));
+    } catch (e) {
+      setAviso(String(e));
+    } finally {
+      setBuscandoDatos(false);
+    }
+  }, [buscandoDatos, sessionId, currentIndex, t]);
+
+  /** Copia el texto que haya escrito en el fotograma que se esta viendo. */
+  const copiarTexto = useCallback(async () => {
+    if (buscandoDatos) return;
+    setBuscandoDatos(true);
+    setAviso(null);
+    try {
+      const texto = await copiaTexto(sessionId, currentIndex);
+      const palabras = texto.trim().split(/\s+/).length;
+      setAviso(t("Texto copiado: {palabras} palabras", { palabras }));
     } catch (e) {
       setAviso(String(e));
     } finally {
@@ -635,6 +652,7 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
             onDeshacer={() => setAnotaciones((previas) => previas.slice(0, -1))}
             onBorrarTodo={() => setAnotaciones([])}
             onTaparDatos={() => void taparDatos()}
+            onCopiarTexto={() => void copiarTexto()}
             buscandoDatos={buscandoDatos}
           />
 

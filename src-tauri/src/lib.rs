@@ -256,6 +256,7 @@ pub fn run() {
             commands::frame_image,
             commands::export_media,
             commands::tapar_datos,
+            commands::copiar_texto,
             commands::ffmpeg_available,
             commands::get_settings,
             commands::set_settings,

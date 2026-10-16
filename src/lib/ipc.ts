@@ -102,6 +102,15 @@ export const sessionCamera = (sessionId: string, zoom: number, crop: Recorte | n
   invoke<MuestraCamara[]>("session_camera", { sessionId, zoom, crop });
 
 /**
+ * Copia el texto que hay escrito en el fotograma, leído por el motor de Windows.
+ *
+ * Devuelve lo copiado para poder decir cuánto era: un aviso que dice «copiado» sin más no
+ * distingue entre haber cogido un párrafo y haber cogido una palabra suelta mal leída.
+ */
+export const copiaTexto = (sessionId: string, index: number) =>
+  invoke<string>("copiar_texto", { sessionId, index });
+
+/**
  * Busca datos personales en el fotograma y devuelve las marcas que los taparían.
  *
  * No cambia nada por su cuenta: las marcas se añaden en el editor, donde se ven antes de

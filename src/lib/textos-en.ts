@@ -459,6 +459,8 @@ export const EN: Record<string, string> = {
   "Tapar datos": "Hide details",
   "Escribe y pulsa en la imagen": "Type, then click on the image",
   "Deshacer la última (Ctrl+Z)": "Undo the last one (Ctrl+Z)",
+  "Copiar el texto de la imagen": "Copy the text in the image",
+  "Texto copiado: {palabras} palabras": "Text copied: {palabras} words",
   "Tapar datos personales": "Cover up personal data",
   "No he encontrado datos personales en esta imagen": "I found no personal data in this image",
   "Tapado: {detalle}": "Covered up: {detalle}",
