@@ -326,7 +326,10 @@ pub fn start(app: &AppHandle, region: Rect, options: RecordOptions) -> Result<Se
     // fotogramas, y no una vez por fotograma: sin el cursor cocido, una pantalla quieta no
     // manda fotogramas aunque el raton se mueva, y el rastro se quedaba sin puntos.
     let muestreador = crate::record::anotador::Muestreador::empezar(
-        crate::record::anotador::Anotador::new(region, marcar_clics, marcar_teclas),
+        // Con una ventana, el anotador mide desde ELLA: si se mueve mientras se graba,
+        // los aros de clic y el rastro del raton la siguen en vez de quedarse donde
+        // estaba al empezar.
+        crate::record::anotador::Anotador::con_ventana(region, ventana, marcar_clics, marcar_teclas),
         crate::record::anotador::Reloj {
             start: reloj_inicio,
             paused_ms: paused_ms.clone(),

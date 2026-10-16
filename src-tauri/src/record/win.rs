@@ -517,6 +517,66 @@ mod tests {
         );
     }
 
+    /// **El estudio sigue a la ventana cuando se mueve.**
+    ///
+    /// Los aros de clic y el rastro del raton se guardan en coordenadas de lo que se
+    /// graba, restando la esquina de la zona. Grabando una VENTANA esa esquina cambia en
+    /// cuanto alguien la arrastra, asi que se pregunta en cada muestra: si se guardara la
+    /// del principio, al mover la ventana los aros saldrian corridos justo lo que se movio.
+    ///
+    ///     cargo test --lib la_esquina_sigue -- --ignored --nocapture
+    #[test]
+    #[ignore = "abre una ventana en la pantalla y la mueve: se corre a mano"]
+    fn la_esquina_sigue_a_la_ventana_cuando_se_mueve() {
+        use crate::record::anotador::esquina_de_la_ventana;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
+        };
+
+        let region = Rect { x: 40, y: 40, width: 160, height: 120 };
+        let ventana = ventana_magenta(region);
+        std::thread::sleep(Duration::from_millis(250));
+
+        let antes = esquina_de_la_ventana(ventana).expect("sin esquina al empezar");
+        println!("esquina al empezar: {antes:?}");
+
+        // Se mueve 120 px a la derecha y 60 hacia abajo, como haria cualquiera.
+        let hwnd = HWND(ventana as *mut core::ffi::c_void);
+        let _ = unsafe {
+            SetWindowPos(
+                hwnd,
+                None,
+                region.x + 120,
+                region.y + 60,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            )
+        };
+        std::thread::sleep(Duration::from_millis(250));
+        let despues = esquina_de_la_ventana(ventana).expect("sin esquina despues de mover");
+        println!("esquina despues de mover: {despues:?}");
+
+        unsafe {
+            let _ = DestroyWindow(hwnd);
+        }
+
+        let (dx, dy) = (despues.0 - antes.0, despues.1 - antes.1);
+        assert!(
+            (dx - 120).abs() <= 2 && (dy - 60).abs() <= 2,
+            "la esquina tenia que moverse 120 x 60 y se ha movido {dx} x {dy}"
+        );
+    }
+
+    /// Y si la ventana ya no esta, no hay esquina: quien pregunta se queda con la ultima
+    /// que supo, que es mejor que mandar todos los aros al cero de la pantalla.
+    #[test]
+    fn una_ventana_que_no_existe_no_da_esquina() {
+        use crate::record::anotador::esquina_de_la_ventana;
+        assert!(esquina_de_la_ventana(0).is_none());
+        assert!(esquina_de_la_ventana(0x7FFF_FFFF).is_none());
+    }
+
     /// Una ventana verde del mismo tamanno, para ponerla encima.
     fn ventana_tapadera(region: Rect) -> isize {
         const CLASE_VERDE: &[u16] = &[

@@ -42,7 +42,10 @@ pub struct Anotaciones {
 }
 
 pub struct Anotador {
+    /// La zona que se graba. Con una ventana se va actualizando sola: ver `origen`.
     region: Rect,
+    /// La ventana que se graba, si se graba una ventana y no un trozo de pantalla.
+    ventana: Option<isize>,
     /// Si los aros de los clics se pintan en los fotogramas mientras se graba.
     marcar_clics: bool,
     /// Y la pastilla con el atajo.
@@ -66,8 +69,24 @@ pub struct Anotador {
 
 impl Anotador {
     pub fn new(region: Rect, marcar_clics: bool, marcar_teclas: bool) -> Self {
+        Self::con_ventana(region, None, marcar_clics, marcar_teclas)
+    }
+
+    /// Igual, pero midiendo desde una VENTANA que se puede mover mientras se graba.
+    ///
+    /// Grabando una ventana, lo que se graba la sigue a donde vaya, asi que el raton y los
+    /// clics no se pueden medir desde donde estaba al empezar: a la primera vez que alguien
+    /// arrastra la ventana, los aros aparecen en otro sitio. El origen se pregunta en cada
+    /// muestra, que cuesta una llamada al escritorio y vale lo que cuesta.
+    pub fn con_ventana(
+        region: Rect,
+        ventana: Option<isize>,
+        marcar_clics: bool,
+        marcar_teclas: bool,
+    ) -> Self {
         Self {
             region,
+            ventana,
             marcar_clics,
             marcar_teclas,
             raton: raton::Vigilante::default(),
@@ -82,13 +101,29 @@ impl Anotador {
         }
     }
 
+    /// De donde se miden las coordenadas en este instante.
+    ///
+    /// Con una region, de su esquina, que no se mueve. Con una ventana, de la esquina que
+    /// tenga AHORA: por eso se pregunta cada vez en vez de guardarla. Si la ventana ya no
+    /// esta, se usa la ultima posicion conocida, que es mejor que mandar todo al cero.
+    fn origen(&mut self) -> (i32, i32) {
+        let Some(hwnd) = self.ventana else {
+            return (self.region.x, self.region.y);
+        };
+        if let Some((x, y)) = esquina_de_la_ventana(hwnd) {
+            self.region.x = x;
+            self.region.y = y;
+        }
+        (self.region.x, self.region.y)
+    }
+
     /// Mira el raton y el teclado en este instante y apunta lo que haya pasado.
     ///
     /// Cuesta dos llamadas al sistema por fotograma. El raton viene en coordenadas del
     /// escritorio y se guarda en las de la region, como todo lo demas, para que el
     /// exportador no tenga que saber de monitores.
     pub fn mirar(&mut self, ts_ms: u64) {
-        let (rx, ry) = (self.region.x, self.region.y);
+        let (rx, ry) = self.origen();
         if let Some((cx, cy)) = raton::cursor() {
             self.anotaciones.cursor.push((ts_ms, cx - rx, cy - ry));
         }
@@ -197,6 +232,33 @@ impl Reloj {
         (self.start.elapsed().as_millis() as u64)
             .saturating_sub(self.paused_ms.load(Ordering::Relaxed))
     }
+}
+
+/// Donde esta ahora la esquina de arriba a la izquierda de esa ventana.
+///
+/// Del marco REAL que compone el escritorio, igual que al arrancar la captura: con
+/// `GetWindowRect` saldria desplazado los pocos pixeles del borde invisible de las sombras,
+/// y los aros de clic se verian corridos.
+#[cfg(windows)]
+pub(crate) fn esquina_de_la_ventana(hwnd: isize) -> Option<(i32, i32)> {
+    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_EXTENDED_FRAME_BOUNDS};
+
+    let mut marco = RECT::default();
+    let ok = unsafe {
+        DwmGetWindowAttribute(
+            HWND(hwnd as *mut core::ffi::c_void),
+            DWMWA_EXTENDED_FRAME_BOUNDS,
+            (&raw mut marco).cast(),
+            std::mem::size_of::<RECT>() as u32,
+        )
+    };
+    ok.ok().map(|()| (marco.left, marco.top))
+}
+
+#[cfg(not(windows))]
+pub(crate) fn esquina_de_la_ventana(_hwnd: isize) -> Option<(i32, i32)> {
+    None
 }
 
 /// Cada cuanto se mira el raton. Sesenta veces por segundo, que es lo que se ve suave en
