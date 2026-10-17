@@ -17,6 +17,7 @@
  *
  *   node scripts/ver-ventana.mjs anclada.png --anclada=recorte.png --ancho=520 --alto=340
  *   node scripts/ver-ventana.mjs editor.png --editor=fotograma.png --ancho=1180 --alto=760
+ *   node scripts/ver-ventana.mjs editor.png --editor=x.png --video=previa.mp4
  *   node scripts/ver-ventana.mjs editor.png --editor=x.png --recorte=200,120,420,300
  *   node scripts/ver-ventana.mjs overlay.png --overlay=escritorio.png
  *   node scripts/ver-ventana.mjs overlay.png --overlay=x.png --raton=300,260 --grabar
@@ -51,7 +52,7 @@ const ancho = bandera("ancho", "840");
 // Estuvo en 640 mientras la ventana medía 510, así que las fotos enseñaban 130 px de más
 // y una sección que se salía por abajo parecía caber. Si se cambia el alto de la ventana,
 // se cambia aquí.
-const alto = bandera("alto", "510");
+const alto = bandera("alto", "620");
 const bienvenida = args.includes("--bienvenida");
 // Win+Mayús+S pedida pero todavía no conseguida, que es cuando sale el botón de aplicar.
 const teclaPendiente = args.includes("--tecla-pendiente");
@@ -93,6 +94,9 @@ const cuenta = bandera("cuenta", null);
 const anclada = bandera("anclada", null);
 // Y otro que hará de fotograma del editor, con una sesión de mentira alrededor.
 const editor = bandera("editor", null);
+// Un MP4 de verdad que haga de vista previa ya escrita. Sin él, el editor sale como
+// sale lo rescatado del anillo: con la imagen puesta y el vídeo todavía en camino.
+const video = bandera("video", null);
 // El editor de una CAPTURA, que es un solo fotograma y no se reproduce: sale sin tira de
 // miniaturas y sin nada que prometa un vídeo. Es otra pantalla y hay que poder mirarla.
 const fija = args.includes("--fija");
@@ -129,6 +133,7 @@ const AJUSTES = {
   captureShortcut: "CmdOrCtrl+Shift+KeyS",
   recordShortcut: "CmdOrCtrl+Shift+KeyA",
   replayShortcut: "CmdOrCtrl+Shift+Digit6",
+  editShortcut: "Super+Shift+KeyL",
   replayEnabled: anillo,
   replaySeconds: 30,
   replayScreen: null,
@@ -139,6 +144,9 @@ const AJUSTES = {
   openEditorAfterRecording: true,
   captureCursor: true,
   recordAudio: false,
+  recordMicrophone: false,
+  highlightClicks: false,
+  highlightKeys: false,
   fps: 30,
   playSound: false,
   showMagnifier: true,
@@ -183,7 +191,7 @@ const SESION = {
   hasClicks: true,
   cursorBaked: false,
   format: fija ? "still" : "video",
-  mp4Path: null,
+  mp4Path: video ? "C:\\\\sesion\\\\preview.mp4" : null,
 };
 
 const FOTOGRAMAS = Array.from({ length: fija ? 1 : 40 }, (_, i) => ({
@@ -196,7 +204,7 @@ const FOTOGRAMAS = Array.from({ length: fija ? 1 : 40 }, (_, i) => ({
 const RESPUESTAS = {
   get_settings: AJUSTES,
   set_settings: AJUSTES,
-  shortcut_status: { capture: true, record: true, replay: true, printScreen: false, winShiftS: false },
+  shortcut_status: { capture: true, edit: true, record: true, replay: true, printScreen: false, winShiftS: false },
   // El anillo de los últimos segundos, encendido y con tres pantallas: es la única forma
   // de mirar esa sección entera, porque sus filas dependen de lo que conteste Rust.
   replay_status: {
@@ -272,7 +280,14 @@ try {
 const MOCK = `<script>
 window.__TAURI_INTERNALS__ = {
   metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
-  convertFileSrc: (p) => (${anclada !== null} ? "/anclada.png" : ${editor !== null} ? "/editor.png" : p),
+  convertFileSrc: (p) =>
+    String(p).endsWith(".mp4")
+      ? "/editor.mp4"
+      : ${anclada !== null}
+        ? "/anclada.png"
+        : ${editor !== null}
+          ? "/editor.png"
+          : p,
   transformCallback: (cb) => { const id = Math.floor(Math.random() * 1e9); window["_" + id] = cb; return id; },
 };
 // El overlay decodifica su pantalla congelada con createImageBitmap, y el Chrome sin ventana
@@ -486,6 +501,12 @@ const server = createServer(async (req, res) => {
     return;
   }
   // El editor pide sus miniaturas y su fotograma grande, todos el mismo archivo.
+  if (ruta === "/editor.mp4" && video) {
+    const datos = await readFile(resolve(video));
+    res.writeHead(200, { "content-type": "video/mp4", "content-length": datos.length });
+    res.end(datos);
+    return;
+  }
   if (ruta === "/editor.png" && editor) {
     res.writeHead(200, { "Content-Type": "image/png" });
     res.end(await readFile(resolve(editor)));

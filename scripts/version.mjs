@@ -71,5 +71,22 @@ try {
   }
 }
 
+// Y la demo de la web, que enseña la ventana de ajustes con su número dentro. Estaba
+// escrito a mano y se quedó cinco versiones atrás sin que nadie lo notara.
+const rutaWeb = join(raiz, "frontlaxweb", "index.html");
+try {
+  const web = readFileSync(rutaWeb, "utf8");
+  const puesta = web
+    .replace(/Versión \d+\.\d+\.\d+/g, `Versión ${NUEVA}`)
+    .replace(/Version \d+\.\d+\.\d+/g, `Version ${NUEVA}`);
+  if (puesta !== web) {
+    writeFileSync(rutaWeb, puesta);
+    // La versión inglesa se genera de esta, así que hay que rehacerla o se queda atrás.
+    execFileSync("node", [join(raiz, "frontlaxweb", "generar-en.mjs")], { stdio: "ignore" });
+  }
+} catch {
+  console.error("Ojo: no he podido poner la versión en frontlaxweb/index.html.");
+}
+
 console.log(`${actual} → ${NUEVA}`);
-console.log("package.json y src-tauri/Cargo.toml al día.");
+console.log("package.json, src-tauri/Cargo.toml y la demo de la web, al día.");
