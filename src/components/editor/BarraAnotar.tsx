@@ -87,7 +87,7 @@ export function BarraAnotar({
       {/* Tapar datos va aparte: los otros cuatro señalan, este esconde. */}
       <Boton
         icono={Difuminar}
-        etiqueta={`${t("Tapar datos")} · 6`}
+        etiqueta={`${t("Mosaico")} · 6`}
         activa={activa === "blur"}
         onClick={() => onElegir(activa === "blur" ? null : "blur")}
       />

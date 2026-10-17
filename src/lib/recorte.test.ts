@@ -6,7 +6,14 @@
  * tipico no es visual, es de un pixel de mas o de una esquina invertida.
  */
 import { describe, expect, it } from "vitest";
-import { medida, ordenar, recortaAlgo, type Recorte } from "./recorte";
+import {
+  conProporcion,
+  esLaProporcion,
+  medida,
+  ordenar,
+  recortaAlgo,
+  type Recorte,
+} from "./recorte";
 
 const MITAD_DERECHA: Recorte = { x1: 0.5, y1: 0, x2: 1, y2: 1 };
 
@@ -62,5 +69,64 @@ describe("si el marco recorta algo de verdad", () => {
 
   it("y la mitad, tambien", () => {
     expect(recortaAlgo(MITAD_DERECHA)).toBe(true);
+  });
+});
+
+describe("las proporciones de un tiron", () => {
+  // Una pantalla normal, que es de donde sale todo lo que se graba.
+  const ANCHO = 1920;
+  const ALTO = 1080;
+
+  it("9:16 se queda con una columna centrada, no con una franja estirada", () => {
+    // Lo que se exporta para el movil. De 1920x1080, lo mas alto que cabe en 9:16 son
+    // 1080 de alto por 607 de ancho: el recorte tiene que medir eso, no la pantalla
+    // entera aplastada.
+    const r = conProporcion(9 / 16, ANCHO, ALTO);
+    const { width, height } = medida(r, ANCHO, ALTO);
+    expect(height).toBe(1080);
+    expect(width).toBe(608);
+    expect(width / height).toBeCloseTo(9 / 16, 2);
+  });
+
+  it("y queda centrado, con el mismo margen a los dos lados", () => {
+    const r = conProporcion(9 / 16, ANCHO, ALTO);
+    expect(r.x1).toBeCloseTo(1 - r.x2, 6);
+    expect(r.y1).toBe(0);
+    expect(r.y2).toBe(1);
+  });
+
+  it("1:1 da un cuadrado de lado el alto de la captura", () => {
+    const { width, height } = medida(conProporcion(1, ANCHO, ALTO), ANCHO, ALTO);
+    expect(width).toBe(1080);
+    expect(height).toBe(1080);
+  });
+
+  it("la proporcion que ya tiene la captura no recorta nada", () => {
+    const r = conProporcion(16 / 9, ANCHO, ALTO);
+    expect(medida(r, ANCHO, ALTO)).toEqual({ width: 1920, height: 1080 });
+    expect(recortaAlgo(r)).toBe(false);
+  });
+
+  it("sobre una captura vertical, 16:9 recorta por arriba y por abajo", () => {
+    // El caso al reves: una ventana estrecha grabada en vertical llevada a apaisado.
+    const { width, height } = medida(conProporcion(16 / 9, 1080, 1920), 1080, 1920);
+    expect(width).toBe(1080);
+    expect(height).toBe(608);
+  });
+
+  it("y la proporcion puesta se reconoce, para poder marcar su boton", () => {
+    const r = conProporcion(9 / 16, ANCHO, ALTO);
+    expect(esLaProporcion(9 / 16, r, ANCHO, ALTO)).toBe(true);
+    expect(esLaProporcion(1, r, ANCHO, ALTO)).toBe(false);
+    expect(esLaProporcion(16 / 9, r, ANCHO, ALTO)).toBe(false);
+  });
+
+  it("moverlo de sitio no le cambia la proporcion", () => {
+    // Al elegir 9:16 el marco se puede arrastrar: sigue siendo 9:16 y su boton sigue
+    // marcado. Si no, elegir la proporcion y colocarla serian dos cosas peleadas.
+    const centrado = conProporcion(9 / 16, ANCHO, ALTO);
+    const ancho = centrado.x2 - centrado.x1;
+    const movido = { ...centrado, x1: 0, x2: ancho };
+    expect(esLaProporcion(9 / 16, movido, ANCHO, ALTO)).toBe(true);
   });
 });

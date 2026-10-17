@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Crop, Pause, Play, Scissors } from "lucide-react";
+import { Crop, Pause, Play, Scissors, VideoOff } from "lucide-react";
 import {
   discardSession,
   ffmpegAvailable,
@@ -467,13 +467,17 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
     );
   }
 
+  // Una captura suelta no tiene tiempo dentro: ni se reproduce, ni se recorta por
+  // fotogramas. Los mandos que no puede usar no se ensennan apagados, se quitan.
+  const esFoto = session.format === "still";
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#161618]">
       <div className="flex min-h-0 flex-1">
         <main className="flex min-w-0 flex-1 flex-col">
           <div
             ref={hueco}
-            className="relative grid min-h-0 flex-1 place-items-center bg-[repeating-conic-gradient(#1c1c1c_0%_25%,#242424_0%_50%)] bg-[length:20px_20px] p-4"
+            className="relative grid min-h-0 flex-1 place-items-center bg-[repeating-conic-gradient(#18181a_0%_25%,#1d1d20_0%_50%)] bg-[length:24px_24px] p-4"
           >
             {/*
               La caja mide EXACTAMENTE lo que la imagen, no lo que el hueco.
@@ -538,76 +542,92 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
               <CapaRecorte activa={recortando} recorte={recorte} onRecorte={setRecorte} />
             </div>
             {/*
-              Mientras el vídeo no está, se DICE.
+              Los avisos van ARRIBA y los mandos abajo, y nunca en el mismo sitio.
 
-              Lo que se rescata del anillo abre el editor antes de tener vídeo, así que
-              durante unos segundos el play no puede hacer nada. Un botón apagado sin
-              explicación es indistinguible de un botón roto: es literalmente lo que pasó
-              el 29 de agosto de 2026, «sigue sin dejarme darle al play».
+              Antes los dos vivían pegados al borde de abajo: el cartel de «preparando la
+              reproducción» aterrizaba justo encima de la barra de mandos, tapaba la imagen
+              por el medio y parecía un fallo de dibujo. Lo que pasa AHORA se cuenta arriba,
+              donde no hay nada que mirar, y lo que se pulsa vive abajo.
             */}
             {aviso && (
-              <div className="pointer-events-none absolute bottom-14 left-1/2 -translate-x-1/2">
-                <span className="rounded-full bg-black/80 px-3 py-1 text-[11px] text-neutral-200 shadow-lg backdrop-blur-md">
+              <div className="pointer-events-none absolute top-3 left-1/2 max-w-[80%] -translate-x-1/2">
+                <span className="block truncate rounded-full bg-black/85 px-3 py-1.5 text-[12px] text-neutral-100 shadow-lg backdrop-blur-md">
                   {aviso}
                 </span>
               </div>
             )}
-            {!videoUrl && session.format !== "still" && (
-              <div className="pointer-events-none absolute bottom-14 left-1/2 -translate-x-1/2">
-                <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] text-neutral-300 backdrop-blur-md">
-                  {previaFallida
-                    ? t("No se ha podido preparar la reproducción")
-                    : porCiento > 0
-                      ? `${t("Preparando la reproducción…")} ${porCiento}%`
-                      : t("Preparando la reproducción…")}
-                </span>
-              </div>
-            )}
             {videoUrl && falloDeVideo && (
-              <div className="pointer-events-none absolute bottom-14 left-1/2 max-w-[80%] -translate-x-1/2">
-                <span className="block truncate rounded-full bg-red-950/80 px-3 py-1 text-[11px] text-red-200 backdrop-blur-md">
-                  {t("No se ha podido reproducir")} · {falloDeVideo}
+              <div className="pointer-events-none absolute top-3 left-1/2 max-w-[80%] -translate-x-1/2">
+                <span className="block truncate rounded-full bg-red-950/85 px-3 py-1.5 text-[12px] text-red-200 shadow-lg backdrop-blur-md">
+                  {t("Este vídeo no se puede reproducir")} · {falloDeVideo}
                 </span>
               </div>
             )}
-            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-neutral-900/85 px-2 py-1.5 shadow-xl backdrop-blur-md">
-              <button
-                type="button"
-                onClick={togglePlay}
-                disabled={!videoUrl}
-                title={
-                  videoUrl
-                    ? undefined
-                    : session.format === "still"
-                      ? t("una captura no se reproduce")
-                      : t("preparando la reproducción…")
-                }
-                aria-label={playing ? t("Pausar") : t("Reproducir")}
-                className="flex size-7 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/10"
-              >
-                {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5 pl-px" />}
-              </button>
-              <span className="px-1 font-mono text-[11px] tabular-nums text-neutral-300">
-                {formatTimecode(frames[currentIndex]?.timestampMs ?? 0)}
-              </span>
-              <span className="h-4 w-px bg-white/10" />
-              <button
-                type="button"
-                onClick={() => markIn(currentIndex)}
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
-                title={t("Marcar inicio (I)")}
-              >
-                <Scissors className="size-3" /> A
-              </button>
-              <button
-                type="button"
-                onClick={() => markOut(currentIndex)}
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
-                title={t("Marcar final (O)")}
-              >
-                <Scissors className="size-3 -scale-x-100" /> B
-              </button>
-              <span className="h-4 w-px bg-white/10" />
+
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-neutral-900/90 px-2 py-1.5 shadow-xl backdrop-blur-md">
+              {/*
+                El sitio del play cuenta en qué punto está el vídeo.
+
+                Mientras se escribe la vista previa no hay nada que reproducir, así que ahí
+                va el anillo con lo que lleva hecho, en vez de un botón apagado que nadie
+                sabe si está roto o esperando. Y si no va a llegar, lo dice y punto: el
+                recorte y la exportación funcionan igual sin vista previa.
+              */}
+              {!esFoto && (
+                <>
+                  {videoUrl ? (
+                    <button
+                      type="button"
+                      onClick={togglePlay}
+                      aria-label={playing ? t("Pausar") : t("Reproducir")}
+                      className="flex size-8 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+                    >
+                      {playing ? <Pause className="size-4" /> : <Play className="size-4 pl-px" />}
+                    </button>
+                  ) : previaFallida ? (
+                    <span
+                      className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] whitespace-nowrap text-amber-300/90"
+                      title={t("Se puede recortar y exportar igual: lo que no va a funcionar es el play")}
+                    >
+                      <VideoOff className="size-4" />
+                      {t("Sin vista previa")}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2 rounded-full px-1.5 py-1 text-[11px] whitespace-nowrap text-neutral-300">
+                      <AnilloDeEspera porCiento={porCiento} />
+                      {porCiento > 0
+                        ? `${t("Preparando el vídeo…")} ${porCiento}%`
+                        : t("Preparando el vídeo…")}
+                    </span>
+                  )}
+                  {/*
+                    Dónde se está y cuánto dura lo que se queda, juntos: un reloj suelto no
+                    dice si 0:03 es el principio de algo largo o el final de algo corto.
+                  */}
+                  <span className="px-1.5 font-mono text-[11px] whitespace-nowrap tabular-nums text-neutral-300">
+                    {formatTimecode(frames[currentIndex]?.timestampMs ?? 0)}
+                    <span className="text-neutral-500"> / {formatTimecode(keptMs)}</span>
+                  </span>
+                  <span className="mx-0.5 h-4 w-px bg-white/10" />
+                  <button
+                    type="button"
+                    onClick={() => markIn(currentIndex)}
+                    className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] whitespace-nowrap text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+                    title={t("Empezar el trozo aquí (I)")}
+                  >
+                    <Scissors className="size-3.5" /> {t("Inicio")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => markOut(currentIndex)}
+                    className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] whitespace-nowrap text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+                    title={t("Terminar el trozo aquí (O)")}
+                  >
+                    <Scissors className="size-3.5 -scale-x-100" /> {t("Fin")}
+                  </button>
+                  <span className="mx-0.5 h-4 w-px bg-white/10" />
+                </>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -615,14 +635,14 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
                   setHerramienta(null);
                 }}
                 aria-pressed={recortando}
-                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                className={`flex items-center gap-1 rounded-full px-2 py-1 text-[11px] whitespace-nowrap transition-colors ${
                   recortando || recorte
                     ? "bg-blue-500 text-white"
                     : "text-neutral-300 hover:bg-white/10 hover:text-white"
                 }`}
-                title={t("Recortar la imagen (C)")}
+                title={t("Quedarse con un trozo de la imagen (C)")}
               >
-                <Crop className="size-3" />
+                <Crop className="size-3.5" />
                 {recorte ? recorteEnPixeles : t("Recortar")}
               </button>
               {recorte && (
@@ -632,7 +652,7 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
                     setRecorte(null);
                     setRecortando(false);
                   }}
-                  className="rounded-full px-1.5 py-0.5 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-white"
+                  className="rounded-full px-1.5 py-1 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-white"
                   title={t("Quitar el recorte")}
                 >
                   ×
@@ -656,15 +676,17 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
             buscandoDatos={buscandoDatos}
           />
 
-          <FrameStrip
-            frames={frames}
-            inIndex={inIndex}
-            outIndex={outIndex}
-            currentIndex={currentIndex}
-            onChangeIn={markIn}
-            onChangeOut={markOut}
-            onScrub={scrub}
-          />
+          {!esFoto && (
+            <FrameStrip
+              frames={frames}
+              inIndex={inIndex}
+              outIndex={outIndex}
+              currentIndex={currentIndex}
+              onChangeIn={markIn}
+              onChangeOut={markOut}
+              onScrub={scrub}
+            />
+          )}
         </main>
 
         <ExportPanel
@@ -678,8 +700,56 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
           hasFfmpeg={hasFfmpeg}
           saveDirectory={settings.saveDirectory}
           onEstudio={setEstudio}
+          onRecorte={(nuevo) => {
+            setRecorte(nuevo);
+            // Puesta la proporción, el marco se enciende para poder moverlo de sitio: es
+            // lo primero que se quiere hacer después de elegirla.
+            setRecortando(nuevo !== null);
+            if (nuevo !== null) setHerramienta(null);
+          }}
         />
       </div>
     </div>
+  );
+}
+/**
+ * Lo que lleva escrito la vista previa, dibujado donde va a estar el play.
+ *
+ * Se llena de verdad en vez de dar vueltas: una rueda girando no distingue «va por la
+ * mitad» de «se ha colgado», y esto son unos segundos mirando un botón que todavía no
+ * funciona. Sin número todavía (los primeros fotogramas) gira un cuarto de anillo, que al
+ * menos dice que algo se está moviendo.
+ */
+function AnilloDeEspera({ porCiento }: { porCiento: number }) {
+  const radio = 9;
+  const vuelta = 2 * Math.PI * radio;
+  const hecho = porCiento > 0 ? porCiento / 100 : 0.25;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`size-5 shrink-0 ${porCiento > 0 ? "" : "animate-spin"}`}
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r={radio}
+        fill="none"
+        strokeWidth="2.5"
+        className="stroke-white/15"
+      />
+      <circle
+        cx="12"
+        cy="12"
+        r={radio}
+        fill="none"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        className="stroke-blue-400 transition-[stroke-dashoffset] duration-300"
+        strokeDasharray={vuelta}
+        strokeDashoffset={vuelta * (1 - hecho)}
+        transform="rotate(-90 12 12)"
+      />
+    </svg>
   );
 }

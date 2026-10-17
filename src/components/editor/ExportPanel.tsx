@@ -15,7 +15,13 @@ import { NumberField } from "../ui/NumberField";
 import { Slider } from "../ui/Slider";
 import { Toggle } from "../ui/Toggle";
 import { useT } from "../../lib/i18n";
-import { medida as medidaDelRecorte, type Recorte } from "../../lib/recorte";
+import {
+  PROPORCIONES,
+  conProporcion,
+  esLaProporcion,
+  medida as medidaDelRecorte,
+  type Recorte,
+} from "../../lib/recorte";
 import type { Anotacion } from "../../lib/anotaciones";
 import { punteroNormal, type Estudio } from "../../lib/estudio";
 
@@ -71,6 +77,8 @@ interface Props {
    * dibuje. El panel sigue mandando; esto es un aviso hacia arriba.
    */
   onEstudio?: (estudio: Estudio) => void;
+  /** Poner o quitar el marco de recorte desde aquí, con una proporción ya hecha. */
+  onRecorte?: (recorte: Recorte | null) => void;
 }
 
 export function ExportPanel({
@@ -84,6 +92,7 @@ export function ExportPanel({
   hasFfmpeg,
   saveDirectory,
   onEstudio,
+  onRecorte,
 }: Props) {
   const t = useT();
   const [format, setFormat] = useState<ExportFormat>(() => {
@@ -280,9 +289,18 @@ export function ExportPanel({
   };
 
   return (
-    <aside className="flex w-[292px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-white/8 bg-black/20 p-4">
+    <aside className="flex w-[292px] shrink-0 flex-col border-l border-white/8 bg-black/20">
+      {/*
+        Arriba, los ajustes, que se desplazan. Abajo, guardar, que no.
+
+        El panel crece con lo que haya puesto (vídeo, estudio, marco) y en una ventana
+        normal los botones se iban por debajo del borde: la acción principal del editor
+        quedaba escondida detrás de una rueda de ratón que nadie tiene por qué adivinar.
+      */}
+      <div className="relative min-h-0 flex-1">
+      <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
       <div>
-        <span className="mb-2 block text-xs font-semibold text-neutral-300">{t("Formato")}</span>
+        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">{t("Formato")}</span>
         <div className="grid grid-cols-4 gap-1 rounded-lg bg-black/40 p-1">
           {FORMATS.map((f) => (
             <button
@@ -328,7 +346,7 @@ export function ExportPanel({
       {/* Debajo de los fps a propósito: los dos hablan del ritmo, y así se leen juntos. */}
       {!esUnaFoto(format) && (
         <div>
-          <span className="mb-2 block text-xs font-semibold text-neutral-300">
+          <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
             {t("Velocidad")}
           </span>
           <div className="flex gap-1">
@@ -359,7 +377,56 @@ export function ExportPanel({
       )}
 
       <div>
-        <span className="mb-2 block text-xs font-semibold text-neutral-300">{t("Dimensiones")}</span>
+        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">{t("Dimensiones")}</span>
+        {/*
+          La proporción, de un clic.
+
+          Lo que se graba de un monitor sale SIEMPRE apaisado, así que para subir algo
+          vertical hay que recortar, y recortar a ojo un 9:16 exacto no lo acierta nadie.
+          Esto coloca el trozo más grande con esa forma, centrado, y después se arrastra
+          donde haga falta sin perder la proporción.
+        */}
+        {onRecorte && (
+          <>
+          <span className="mb-1.5 block text-[11px] text-neutral-500">{t("Proporción")}</span>
+          <div className="mb-2.5 flex gap-1">
+            {PROPORCIONES.map((p) => {
+              const puesta =
+                recorte !== null &&
+                esLaProporcion(p.valor, recorte, session.region.width, session.region.height);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={puesta}
+                  onClick={() =>
+                    onRecorte(
+                      conProporcion(p.valor, session.region.width, session.region.height),
+                    )
+                  }
+                  className={`flex-1 rounded-lg px-1 py-1.5 text-[11px] font-medium tabular-nums transition-colors ${
+                    puesta
+                      ? "bg-blue-500 text-white"
+                      : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                  }`}
+                >
+                  {p.id}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => onRecorte(null)}
+              disabled={recorte === null}
+              title={t("Quitar el recorte")}
+              aria-label={t("Quitar el recorte")}
+              className="rounded-lg px-2 py-1.5 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
+            >
+              ×
+            </button>
+          </div>
+          </>
+        )}
         <div className="flex items-end gap-2">
           <NumberField label={t("Ancho")} value={width} onChange={setW} suffix="px" />
           <button
@@ -399,6 +466,9 @@ export function ExportPanel({
           clics, que un interruptor que no puede hacer nada es peor que no tenerlo. */}
       {!esUnaFoto(format) && (
         <div className="space-y-2 border-t border-white/8 pt-3">
+          <span className="block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+            {t("Lo que se dibuja encima")}
+          </span>
           <Slider
             label={t("Puntero dibujado")}
             hint={
@@ -448,12 +518,15 @@ export function ExportPanel({
             hint={t("solo con Ctrl, Alt o Win: lo que escribes no sale")}
           />
           <p className="text-[11px] leading-snug text-neutral-500">
-            {t("Lo que ves aquí es lo que sale: el zoom, el puntero y los aros se dibujan encima de la vista previa.")}
+            {t("La vista previa ya enseña todo esto: lo que ves es lo que sale.")}
           </p>
         </div>
       )}
 
       <div className="border-t border-white/8 pt-3">
+        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+          {t("El marco de alrededor")}
+        </span>
         <Slider
           label={t("Aire alrededor")}
           hint={margen === 0 ? t("sin marco") : `${margen} px`}
@@ -489,7 +562,11 @@ export function ExportPanel({
         )}
       </div>
 
+      {(format === "mp4" || format === "gif" || (hasFfmpeg && !esUnaFoto(format))) && (
       <div className="space-y-0.5 border-t border-white/8 pt-3">
+        <span className="mb-1.5 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+          {t("El archivo")}
+        </span>
         {format === "mp4" && (
           <Toggle
             checked={audio}
@@ -514,19 +591,26 @@ export function ExportPanel({
           />
         )}
       </div>
+      )}
 
-      <button
-        type="button"
-        onClick={() => void pickDirectory().then((dir) => dir && setDirectory(dir))}
-        className="flex items-center gap-2 rounded-lg border border-white/8 bg-black/30 px-2.5 py-2 text-left transition-colors hover:border-white/20"
-      >
-        <FolderOpen className="size-4 shrink-0 text-neutral-400" />
-        <span className="truncate text-[11px] text-neutral-400" title={directory}>
-          {directory || t("Elegir carpeta…")}
-        </span>
-      </button>
+      </div>
+      {/* El desvanecido dice «esto sigue»: cortado a hueso, lo de abajo no se busca. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-[#131315] to-transparent" />
+      </div>
 
-      <div className="mt-auto space-y-2 pt-2">
+      <div className="shrink-0 space-y-2 border-t border-white/8 bg-black/35 p-3">
+        <button
+          type="button"
+          onClick={() => void pickDirectory().then((dir) => dir && setDirectory(dir))}
+          title={t("Elegir dónde se guarda")}
+          className="flex w-full items-center gap-2 rounded-lg border border-white/8 bg-black/30 px-2.5 py-1.5 text-left transition-colors hover:border-white/20"
+        >
+          <FolderOpen className="size-4 shrink-0 text-neutral-400" />
+          <span className="truncate text-[11px] text-neutral-400" title={directory}>
+            {directory || t("Elegir carpeta…")}
+          </span>
+        </button>
+
         <div className="flex items-center justify-between text-[11px] text-neutral-500">
           <span className="flex items-center gap-1.5">
             {useFfmpeg && hasFfmpeg ? (
@@ -558,7 +642,7 @@ export function ExportPanel({
             title={t("Exportar a la carpeta elegida (Ctrl+S)")}
             className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-500 text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-blue-400 disabled:opacity-50"
           >
-            <Save className="size-4" /> {t("Guardar")}
+            <Save className="size-4" /> {t("Guardar")} {format.toUpperCase()}
           </button>
           <button
             type="button"

@@ -56,9 +56,9 @@ describe("la cabecera de la tira", () => {
     aplicarIdioma("en");
     pintar({ currentIndex: 2, inIndex: 1, outIndex: 5 });
     expect(screen.getByText(/Frame 3 of 10/)).toBeInTheDocument();
-    expect(screen.getByText(/Crop 2 to 6/)).toBeInTheDocument();
+    expect(screen.getByText(/Keeping 2 to 6/)).toBeInTheDocument();
     expect(screen.getByText(/5 frames/)).toBeInTheDocument();
-    expect(screen.queryByText(/Fotograma|Recorte|fotogramas/)).toBeNull();
+    expect(screen.queryByText(/Fotograma|quedas|fotogramas/)).toBeNull();
   });
 
   it("dice «1 fotograma» en singular cuando solo queda uno", () => {
@@ -89,26 +89,26 @@ describe("los marcadores del recorte", () => {
     // redondear hacia abajo lo movia uno a la derecha y ese fotograma de mas se colaba
     // en la exportacion.
     const { onChangeOut } = pintar({ inIndex: 0, outIndex: 5 });
-    fireEvent.pointerDown(screen.getByTitle("Marca B (tecla O)"));
+    fireEvent.pointerDown(screen.getByTitle("Final del trozo (tecla O)"));
     fireEvent.pointerMove(window, { clientX: (5 + 1) * ANCHO });
     expect(onChangeOut).toHaveBeenLastCalledWith(5);
   });
 
   it("el marcador A se queda en el fotograma sobre el que se suelta", () => {
     const { onChangeIn } = pintar();
-    fireEvent.pointerDown(screen.getByTitle("Marca A (tecla I)"));
+    fireEvent.pointerDown(screen.getByTitle("Inicio del trozo (tecla I)"));
     fireEvent.pointerMove(window, { clientX: 3 * ANCHO + 10 });
     expect(onChangeIn).toHaveBeenLastCalledWith(3);
   });
 
   it("ninguno de los dos se sale de la tira por mucho que se arrastre", () => {
     const { onChangeIn, onChangeOut } = pintar();
-    fireEvent.pointerDown(screen.getByTitle("Marca A (tecla I)"));
+    fireEvent.pointerDown(screen.getByTitle("Inicio del trozo (tecla I)"));
     fireEvent.pointerMove(window, { clientX: -5000 });
     expect(onChangeIn).toHaveBeenLastCalledWith(0);
 
     fireEvent.pointerUp(window);
-    fireEvent.pointerDown(screen.getByTitle("Marca B (tecla O)"));
+    fireEvent.pointerDown(screen.getByTitle("Final del trozo (tecla O)"));
     fireEvent.pointerMove(window, { clientX: 5000 });
     expect(onChangeOut).toHaveBeenLastCalledWith(9);
   });
@@ -116,7 +116,7 @@ describe("los marcadores del recorte", () => {
   it("los tooltips de los marcadores tambien se traducen", () => {
     aplicarIdioma("en");
     pintar();
-    expect(screen.getByTitle("Mark A (key I)")).toBeInTheDocument();
-    expect(screen.getByTitle("Mark B (key O)")).toBeInTheDocument();
+    expect(screen.getByTitle("Start of the clip (key I)")).toBeInTheDocument();
+    expect(screen.getByTitle("End of the clip (key O)")).toBeInTheDocument();
   });
 });

@@ -102,7 +102,7 @@ export function FrameStrip({
           · {formatTimecode(frames[currentIndex]?.timestampMs ?? 0)}
         </span>
         <span>
-          {t("Recorte {desde} a {hasta}", { desde: inIndex + 1, hasta: outIndex + 1 })} ·{" "}
+          {t("Te quedas con {desde} a {hasta}", { desde: inIndex + 1, hasta: outIndex + 1 })} ·{" "}
           {kept.length === 1
             ? t("{n} fotograma", { n: kept.length })
             : t("{n} fotogramas", { n: kept.length })}{" "}
@@ -207,7 +207,7 @@ function Handle({
       className={`absolute inset-y-0 z-10 w-2.5 cursor-ew-resize bg-blue-500 ${
         side === "in" ? "-translate-x-full rounded-l-md" : "rounded-r-md"
       }`}
-      title={side === "in" ? t("Marca A (tecla I)") : t("Marca B (tecla O)")}
+      title={side === "in" ? t("Inicio del trozo (tecla I)") : t("Final del trozo (tecla O)")}
     >
       <span className="absolute top-1/2 left-1/2 h-4 w-px -translate-x-1/2 -translate-y-1/2 bg-white/70" />
     </div>

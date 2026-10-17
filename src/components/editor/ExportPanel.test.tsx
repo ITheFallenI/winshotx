@@ -6,12 +6,12 @@
  * formato anterior no se nota mirando: se nota cuando alguien abre el archivo.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExportPanel } from "./ExportPanel";
 import { aplicarIdioma } from "../../lib/i18n";
 import { llamadas, responde } from "../../test/preparar";
 import type { SessionInfo } from "../../lib/types";
-import type { Recorte } from "../../lib/recorte";
+import { conProporcion, medida, type Recorte } from "../../lib/recorte";
 
 const GRABACION: SessionInfo = {
   id: "s1",
@@ -38,9 +38,13 @@ function pintar(session: Partial<SessionInfo> = {}, recorte: Recorte | null = nu
       fpsMax={60}
       hasFfmpeg={false}
       saveDirectory="C:\\capturas"
+      onRecorte={alRecorte}
     />,
   );
 }
+
+/** Lo que el panel le pide al editor sobre el marco de recorte. */
+const alRecorte = vi.fn();
 
 /** Lo que se le mando a Rust en la ultima exportacion. */
 function loExportado() {
@@ -48,7 +52,10 @@ function loExportado() {
   return (llamada?.args as { request: Record<string, unknown> })?.request;
 }
 
-beforeEach(() => aplicarIdioma("es"));
+beforeEach(() => {
+  aplicarIdioma("es");
+  alRecorte.mockClear();
+});
 
 describe("elegir el formato", () => {
   it("una grabacion empieza en MP4 y una captura suelta en PNG", () => {
@@ -57,6 +64,16 @@ describe("elegir el formato", () => {
     unmount();
     pintar({ format: "still", frameCount: 1 });
     expect(screen.getByText("PNG").className).toContain("bg-white/15");
+  });
+
+  it("un titulo de seccion sin nada debajo no sale", () => {
+    // Con PNG no hay audio, ni bucle, ni motor que elegir: «El archivo» se quedaba de
+    // rotulo suelto encima de un hueco.
+    const { unmount } = pintar();
+    expect(screen.getByText("El archivo")).toBeInTheDocument();
+    unmount();
+    pintar({ format: "still", frameCount: 1 });
+    expect(screen.queryByText("El archivo")).toBeNull();
   });
 
   it("estan los cuatro, GIF, MP4, PNG y JPG", () => {
@@ -309,5 +326,39 @@ describe("la velocidad", () => {
     pintar();
     fireEvent.click(boton("2"));
     expect(screen.getByText(/sale sin sonido/)).toBeInTheDocument();
+  });
+});
+
+describe("la proporcion de un clic", () => {
+  it("9:16 pide el trozo vertical mas grande que cabe, centrado", () => {
+    // Lo que se graba de un monitor sale apaisado SIEMPRE: para subir algo vertical hay
+    // que recortar, y a ojo no se acierta un 9:16 exacto.
+    pintar();
+    fireEvent.click(screen.getByText("9:16"));
+    const puesto = alRecorte.mock.calls.at(-1)?.[0] as Recorte;
+    // La sesion de prueba es de 800x600.
+    expect(medida(puesto, 800, 600)).toEqual({ width: 338, height: 600 });
+    expect(puesto.x1).toBeCloseTo(1 - puesto.x2, 6);
+  });
+
+  it("y el boton se queda marcado mientras ese recorte siga puesto", () => {
+    const vertical = conProporcion(9 / 16, 800, 600);
+    pintar({}, vertical);
+    expect(screen.getByText("9:16")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("1:1")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("las dimensiones salen del trozo, no de la captura entera", () => {
+    // El fallo que esto evita: exportar un 9:16 con el ancho de la pantalla, que estira
+    // la imagen hasta dejarla irreconocible.
+    pintar({}, conProporcion(9 / 16, 800, 600));
+    expect(screen.getByLabelText("Ancho")).toHaveValue(338);
+    expect(screen.getByLabelText("Alto")).toHaveValue(600);
+  });
+
+  it("y la × lo quita entero", () => {
+    pintar({}, conProporcion(1, 800, 600));
+    fireEvent.click(screen.getByLabelText("Quitar el recorte"));
+    expect(alRecorte).toHaveBeenCalledWith(null);
   });
 });

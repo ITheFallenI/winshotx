@@ -151,6 +151,7 @@ export const EN: Record<string, string> = {
   "descargando la {v}… {pct} %": "downloading {v}… {pct} %",
   "instalada, solo falta reiniciar": "installed, it just needs a restart",
   Buscar: "Check",
+  "Al día": "Up to date",
   "Actualizar ahora": "Update now",
   Reiniciar: "Restart",
   Bienvenida: "Welcome",
@@ -274,11 +275,11 @@ export const EN: Record<string, string> = {
     "Print Screen did not come across: another program is holding it.",
   "Si Windows sigue abriendo la Herramienta de Recortes con Impr Pant, cierra sesión y vuelve a entrar.":
     "If Windows keeps opening the Snipping Tool with Print Screen, sign out and back in.",
-  "Sin cambios. Puedes activarlo más adelante en Ajustes, en “Atajos globales”.":
-    "Nothing changed. You can turn it on later in Settings, under “Global shortcuts”.",
+  "Sin cambios. Puedes activarlo más adelante en Ajustes, en “Teclas de Windows”.":
+    "Nothing changed. You can turn it on later in Settings, under “Windows keys”.",
   "Win + Mayús + S es otra historia.": "Win + Shift + S is another story.",
-  "Esa la atiende Windows antes que cualquier programa y solo se le quita apagando la S de sus atajos, lo que apaga también Win + S, la búsqueda. Por eso va aparte, en Ajustes → Atajos globales, y no entra aquí de propina.":
-    "Windows answers that one before any program, and the only way to take it is to switch off the S in its own shortcuts, which also switches off Win + S, the search. That is why it sits apart, in Settings → Global shortcuts, and does not come along for the ride here.",
+  "Esa la atiende Windows antes que cualquier programa y solo se le quita apagando la S de sus atajos, lo que apaga también Win + S, la búsqueda. Por eso va aparte, en Ajustes → Teclas de Windows, y no entra aquí de propina.":
+    "Windows answers that one before any program, and the only way to take it is to switch off the S in its own shortcuts, which also switches off Win + S, the search. That is why it sits apart, in Settings → Windows keys, and does not come along for the ride here.",
 
   "Listo, ya puedes capturar": "That is it, you can start capturing",
   "Esto es lo que queda configurado. Todo se cambia después desde el icono de la bandeja.":
@@ -326,15 +327,29 @@ export const EN: Record<string, string> = {
   Parar: "Stop",
   "Guardando…": "Saving…",
   "sin puntero": "no pointer",
-  "Lo que ves aquí es lo que sale: el zoom, el puntero y los aros se dibujan encima de la vista previa.":
-    "What you see here is what comes out: the zoom, the pointer and the rings are drawn over the preview.",
 
   Editor: "Editor",
   Cerrar: "Close",
   "Preparando la sesión…": "Getting the session ready…",
   "Sin vista previa": "No preview",
+  "Preparando el vídeo…": "Getting the video ready…",
+  "Se puede recortar y exportar igual: lo que no va a funcionar es el play":
+    "You can still crop it and export it: the only thing off is playing it",
+  "Este vídeo no se puede reproducir": "This video will not play",
+  Inicio: "Start",
+  Fin: "End",
+  "Empezar el trozo aquí (I)": "Start the clip here (I)",
+  "Terminar el trozo aquí (O)": "End the clip here (O)",
+  "Quedarse con un trozo de la imagen (C)": "Keep just a piece of the image (C)",
+  "Elegir dónde se guarda": "Choose where it gets saved",
+  "Lo que se dibuja encima": "Drawn on top",
+  "El marco de alrededor": "The frame around it",
+  "El archivo": "The file",
+  "La vista previa ya enseña todo esto: lo que ves es lo que sale.":
+    "The preview already shows all of this: what you see is what you get.",
   Formato: "Format",
   Dimensiones: "Size",
+  Proporción: "Aspect ratio",
   Ancho: "Width",
   Alto: "Height",
   "Proporción bloqueada": "Proportions locked",
@@ -342,16 +357,7 @@ export const EN: Record<string, string> = {
   Calidad: "Quality",
   "Bucle infinito": "Loop forever",
   "Motor FFmpeg": "FFmpeg engine",
-  "preparando la reproducción…": "getting playback ready…",
-  "Preparando la reproducción…": "Getting playback ready…",
-  "una captura no se reproduce": "a screenshot does not play",
-  "No se ha podido preparar la reproducción": "Playback could not be prepared",
-  "No se ha podido reproducir": "It cannot play",
   "el vídeo de vista previa no se ha podido abrir": "the preview video would not open",
-  "Marcar inicio (I)": "Mark the start (I)",
-  "Marcar final (O)": "Mark the end (O)",
-  "Marca A (tecla I)": "Mark A (key I)",
-  "Marca B (tecla O)": "Mark B (key O)",
   "Exportar a la carpeta elegida (Ctrl+S)": "Export to the chosen folder (Ctrl+S)",
   "Exportar y copiar al portapapeles": "Export and copy to the clipboard",
   "abrir carpeta": "open folder",
@@ -379,7 +385,9 @@ export const EN: Record<string, string> = {
 
   // La tira de miniaturas del editor
   "Fotograma {actual} de {total}": "Frame {actual} of {total}",
-  "Recorte {desde} a {hasta}": "Crop {desde} to {hasta}",
+  "Te quedas con {desde} a {hasta}": "Keeping {desde} to {hasta}",
+  "Inicio del trozo (tecla I)": "Start of the clip (key I)",
+  "Final del trozo (tecla O)": "End of the clip (key O)",
   "{n} fotograma": "{n} frame",
   "{n} fotogramas": "{n} frames",
   "Falta el identificador de sesión": "The session id is missing",
@@ -425,12 +433,11 @@ export const EN: Record<string, string> = {
 
   // Recortar la imagen
   Recortar: "Crop",
-  "Recortar la imagen (C)": "Crop the image (C)",
   "Quitar el recorte": "Remove the crop",
   "Lo que se va a exportar": "What is going to be exported",
 
   // El marco al exportar
-  "Aire alrededor": "Space around it",
+  "Aire alrededor": "Padding",
   "sin marco": "no frame",
   Sombra: "Shadow",
   Blanco: "White",
@@ -456,13 +463,13 @@ export const EN: Record<string, string> = {
   Rectángulo: "Box",
   Texto: "Text",
   Resaltar: "Highlight",
-  "Tapar datos": "Hide details",
+  Mosaico: "Pixelate",
   "Escribe y pulsa en la imagen": "Type, then click on the image",
   "Deshacer la última (Ctrl+Z)": "Undo the last one (Ctrl+Z)",
   "Últimas capturas": "Latest shots",
   "Copiar {nombre}": "Copy {nombre}",
   "Copiada: {nombre}": "Copied: {nombre}",
-  "No he podido copiarla": "I could not copy it",
+  "No he podido copiarla": "It could not be copied",
   "hace un momento": "just now",
   "hace {minutos} min": "{minutos} min ago",
   "hace {horas} h": "{horas} h ago",
@@ -471,7 +478,7 @@ export const EN: Record<string, string> = {
   "Copiar el texto de la imagen": "Copy the text in the image",
   "Texto copiado: {palabras} palabras": "Text copied: {palabras} words",
   "Tapar datos personales": "Cover up personal data",
-  "No he encontrado datos personales en esta imagen": "I found no personal data in this image",
+  "No he encontrado datos personales en esta imagen": "No personal data found in this image",
   "Tapado: {detalle}": "Covered up: {detalle}",
   "Quitar todas": "Remove them all",
 

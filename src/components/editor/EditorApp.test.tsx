@@ -207,30 +207,31 @@ describe("la vista previa del estudio", () => {
 
 describe("el botón de reproducir", () => {
   const play = () => screen.getByRole("button", { name: /Reproducir|Play/ });
+  const hayPlay = () => screen.queryByRole("button", { name: /Reproducir|Play/ });
 
-  it("sin vídeo todavía, no promete lo que no puede hacer", async () => {
+  it("sin vídeo todavía, no hay botón que prometa nada", async () => {
+    // Un botón apagado es indistinguible de uno roto: lo que hay mientras se escribe la
+    // vista previa es el aviso de que viene, no un play muerto esperando un clic.
     await abrirRescatada();
-    expect(play()).toBeDisabled();
-    expect(play()).toHaveAttribute("title", "preparando la reproducción…");
+    expect(hayPlay()).toBeNull();
   });
 
   it("y con el vídeo escrito, se puede pulsar", async () => {
-    preparar(VERTICAL, "C:\\t\\preview.mp4");
+    preparar(VERTICAL, "C:\\t\\preview.mp4", "mp4");
     render(<EditorApp sessionId="s1" />);
     await waitFor(() => expect(screen.queryByText("Preparando la sesión…")).toBeNull());
     expect(play()).toBeEnabled();
   });
 
   it("mientras no está, se dice que está en camino", async () => {
-    // Un botón apagado y callado es indistinguible de uno roto. Esta frase es toda la
-    // diferencia entre «espera unos segundos» y «esto no funciona».
+    // Esta frase es toda la diferencia entre «espera unos segundos» y «esto no funciona».
     await abrirRescatada();
-    expect(screen.getByText("Preparando la reproducción…")).toBeInTheDocument();
+    expect(screen.getByText("Preparando el vídeo…")).toBeInTheDocument();
   });
 
   it("cuando avisan de que ya está, se enciende solo", async () => {
     await abrirRescatada();
-    expect(play()).toBeDisabled();
+    expect(hayPlay()).toBeNull();
 
     responde("session_info", {
       id: "s1",
@@ -245,46 +246,55 @@ describe("el botón de reproducir", () => {
     emite("winshotx://session-preview", { sessionId: "s1", porCiento: 100, listo: true, fallida: false });
 
     await waitFor(() => expect(play()).toBeEnabled());
-    expect(screen.queryByText("Preparando la reproducción…")).toBeNull();
+    expect(screen.queryByText("Preparando el vídeo…")).toBeNull();
   });
 
   it("el aviso de otra sesión no lo toca", async () => {
     await abrirRescatada();
     emite("winshotx://session-preview", { sessionId: "otra", porCiento: 100, listo: true, fallida: false });
-    expect(play()).toBeDisabled();
+    expect(hayPlay()).toBeNull();
+    expect(screen.getByText("Preparando el vídeo…")).toBeInTheDocument();
   });
 
   it("y si la vista previa no sale, lo dice en vez de esperar para siempre", async () => {
     await abrirRescatada();
     emite("winshotx://session-preview", { sessionId: "s1", porCiento: 0, listo: false, fallida: true });
-    await waitFor(() =>
-      expect(screen.getByText("No se ha podido preparar la reproducción")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("Sin vista previa")).toBeInTheDocument());
+    // Y se dice lo que SÍ se puede hacer, que recortar y exportar siguen funcionando.
+    expect(screen.getByTitle(/recortar y exportar igual/)).toBeInTheDocument();
   });
 
   it("y mientras se escribe, dice por dónde va", async () => {
     await abrirRescatada();
     emite("winshotx://session-preview", { sessionId: "s1", porCiento: 45, listo: false, fallida: false });
-    await waitFor(() =>
-      expect(screen.getByText("Preparando la reproducción… 45%")).toBeInTheDocument(),
-    );
-    expect(play()).toBeDisabled();
+    await waitFor(() => expect(screen.getByText("Preparando el vídeo… 45%")).toBeInTheDocument());
+    expect(hayPlay()).toBeNull();
   });
 
-  it("una captura fija no promete ninguna reproducción", async () => {
-    // Una captura es un fotograma y ya: ahí no viene ningún vídeo por detrás, así que
-    // decir «preparando la reproducción» sería esperar algo que no existe.
+  it("una captura fija no enseña mandos de reproducción", async () => {
+    // Una captura es un fotograma y ya: ni se reproduce, ni tiene principio y final que
+    // marcar. Cuatro botones apagados que hay que leer para descartarlos son peor que
+    // ninguno.
     await abrir();
-    expect(screen.queryByText("Preparando la reproducción…")).toBeNull();
-    expect(play()).toBeDisabled();
-    expect(play()).toHaveAttribute("title", "una captura no se reproduce");
+    expect(screen.queryByText("Preparando el vídeo…")).toBeNull();
+    expect(hayPlay()).toBeNull();
+    expect(screen.queryByRole("button", { name: /Inicio|Start/ })).toBeNull();
+    // Lo que sí sigue estando en una captura es el recorte.
+    expect(screen.getByRole("button", { name: /Recortar|Crop/ })).toBeInTheDocument();
+  });
+
+  it("una captura tampoco enseña la tira de fotogramas", async () => {
+    // Una captura es UN fotograma: la tira se quedaba con una miniatura sola y un
+    // «Fotograma 1 de 1» debajo, ocupando cien píxeles de los que mide la imagen.
+    await abrir();
+    expect(screen.queryByText(/Fotograma 1 de/)).toBeNull();
   });
 
   it("pulsarlo le habla al vídeo, en el mismo clic", async () => {
     // El `play()` tiene que salir del clic: lanzado desde un efecto de después llega ya
     // fuera del gesto de la persona, y ahí un navegador puede rechazarlo sin más.
     const suena = vi.spyOn(window.HTMLMediaElement.prototype, "play").mockResolvedValue();
-    preparar(VERTICAL, "C:\\t\\preview.mp4");
+    preparar(VERTICAL, "C:\\t\\preview.mp4", "mp4");
     render(<EditorApp sessionId="s1" />);
     await waitFor(() => expect(screen.queryByText("Preparando la sesión…")).toBeNull());
 
@@ -297,12 +307,25 @@ describe("el botón de reproducir", () => {
     const suena = vi
       .spyOn(window.HTMLMediaElement.prototype, "play")
       .mockRejectedValue("NotAllowedError");
-    preparar(VERTICAL, "C:\\t\\preview.mp4");
+    preparar(VERTICAL, "C:\\t\\preview.mp4", "mp4");
     render(<EditorApp sessionId="s1" />);
     await waitFor(() => expect(screen.queryByText("Preparando la sesión…")).toBeNull());
 
     fireEvent.click(play());
     await waitFor(() => expect(screen.getByText(/NotAllowedError/)).toBeInTheDocument());
     suena.mockRestore();
+  });
+
+  it("el reloj dice dónde estás Y cuánto dura lo que te quedas", async () => {
+    // Un reloj suelto no distingue el principio de algo largo del final de algo corto.
+    preparar(VERTICAL, "C:\\t\\preview.mp4", "mp4");
+    render(<EditorApp sessionId="s1" />);
+    await waitFor(() => expect(screen.queryByText("Preparando la sesión…")).toBeNull());
+    // La tira de abajo también escribe la hora del fotograma, así que se mira el
+    // reloj de los mandos entre todos los que la llevan.
+    const relojes = screen
+      .getAllByText(/0:00\.00/)
+      .map((el) => el.closest("span")?.textContent ?? "");
+    expect(relojes.some((texto) => /0:00\.00\s*\/\s*0:00\.\d\d/.test(texto))).toBe(true);
   });
 });

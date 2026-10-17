@@ -144,6 +144,7 @@ export const ZH: Record<string, string> = {
   "descargando la {v}… {pct} %": "正在下载 {v}… {pct}%",
   "instalada, solo falta reiniciar": "已安装，只需重启",
   Buscar: "检查更新",
+  "Al día": "已是最新",
   "Actualizar ahora": "立即更新",
   Reiniciar: "重启",
   Bienvenida: "欢迎",
@@ -266,11 +267,11 @@ export const ZH: Record<string, string> = {
     "未能接管 Print Screen：其他程序占用了它。",
   "Si Windows sigue abriendo la Herramienta de Recortes con Impr Pant, cierra sesión y vuelve a entrar.":
     "如果 Windows 仍用 Print Screen 打开截图工具，请注销并重新登录。",
-  "Sin cambios. Puedes activarlo más adelante en Ajustes, en “Atajos globales”.":
-    "未做更改。可以稍后在设置中的「全局快捷键」里开启。",
+  "Sin cambios. Puedes activarlo más adelante en Ajustes, en “Teclas de Windows”.":
+    "未做更改。可以稍后在设置中的「Windows 快捷键」里开启。",
   "Win + Mayús + S es otra historia.": "Win + Shift + S 是另一回事。",
-  "Esa la atiende Windows antes que cualquier programa y solo se le quita apagando la S de sus atajos, lo que apaga también Win + S, la búsqueda. Por eso va aparte, en Ajustes → Atajos globales, y no entra aquí de propina.":
-    "Windows 会在任何程序之前处理它，只能通过关闭其快捷键中的 S 来解除，而这也会关闭 Win+S 搜索。所以它单独放在设置 → 全局快捷键中，不在这里附带处理。",
+  "Esa la atiende Windows antes que cualquier programa y solo se le quita apagando la S de sus atajos, lo que apaga también Win + S, la búsqueda. Por eso va aparte, en Ajustes → Teclas de Windows, y no entra aquí de propina.":
+    "Windows 会在任何程序之前处理它，只能通过关闭其快捷键中的 S 来解除，而这也会关闭 Win+S 搜索。所以它单独放在设置 → Windows 快捷键中，不在这里附带处理。",
 
   "Listo, ya puedes capturar": "完成，可以开始截图了",
   "Esto es lo que queda configurado. Todo se cambia después desde el icono de la bandeja.":
@@ -318,8 +319,6 @@ export const ZH: Record<string, string> = {
   Parar: "停止",
   "Guardando…": "正在保存…",
   "sin puntero": "无指针",
-  "Lo que ves aquí es lo que sale: el zoom, el puntero y los aros se dibujan encima de la vista previa.":
-    "所见即所得：缩放、指针和点击光环都会绘制在预览之上。",
 
   Editor: "编辑器",
   Cerrar: "关闭",
@@ -327,6 +326,7 @@ export const ZH: Record<string, string> = {
   "Sin vista previa": "无预览",
   Formato: "格式",
   Dimensiones: "尺寸",
+  Proporción: "比例",
   Ancho: "宽",
   Alto: "高",
   "Proporción bloqueada": "锁定比例",
@@ -334,16 +334,22 @@ export const ZH: Record<string, string> = {
   Calidad: "质量",
   "Bucle infinito": "无限循环",
   "Motor FFmpeg": "FFmpeg 引擎",
-  "preparando la reproducción…": "正在准备播放…",
-  "Preparando la reproducción…": "正在准备播放…",
-  "una captura no se reproduce": "截图无法播放",
-  "No se ha podido preparar la reproducción": "无法准备播放",
-  "No se ha podido reproducir": "无法播放",
+  "Preparando el vídeo…": "正在准备视频…",
+  "Se puede recortar y exportar igual: lo que no va a funcionar es el play":
+    "仍然可以裁剪和导出，只是无法播放",
+  "Este vídeo no se puede reproducir": "无法播放此视频",
+  Inicio: "起点",
+  Fin: "终点",
+  "Empezar el trozo aquí (I)": "从这里开始片段 (I)",
+  "Terminar el trozo aquí (O)": "在这里结束片段 (O)",
+  "Quedarse con un trozo de la imagen (C)": "只保留图像的一部分 (C)",
+  "Elegir dónde se guarda": "选择保存位置",
+  "Lo que se dibuja encima": "叠加内容",
+  "El marco de alrededor": "外框",
+  "El archivo": "文件",
+  "La vista previa ya enseña todo esto: lo que ves es lo que sale.":
+    "预览里已经能看到这一切：所见即所得。",
   "el vídeo de vista previa no se ha podido abrir": "无法打开预览视频",
-  "Marcar inicio (I)": "标记起点 (I)",
-  "Marcar final (O)": "标记终点 (O)",
-  "Marca A (tecla I)": "标记 A（I 键）",
-  "Marca B (tecla O)": "标记 B（O 键）",
   "Exportar a la carpeta elegida (Ctrl+S)": "导出到所选文件夹 (Ctrl+S)",
   "Exportar y copiar al portapapeles": "导出并复制到剪贴板",
   "abrir carpeta": "打开文件夹",
@@ -371,7 +377,7 @@ export const ZH: Record<string, string> = {
 
   // 编辑器缩略图条
   "Fotograma {actual} de {total}": "第 {actual} 帧，共 {total} 帧",
-  "Recorte {desde} a {hasta}": "裁剪 {desde} 至 {hasta}",
+  "Te quedas con {desde} a {hasta}": "保留 {desde} 到 {hasta}",
   "{n} fotograma": "{n} 帧",
   "{n} fotogramas": "{n} 帧",
   "Falta el identificador de sesión": "缺少会话 ID",
@@ -447,7 +453,7 @@ export const ZH: Record<string, string> = {
   Rectángulo: "矩形",
   Texto: "文字",
   Resaltar: "高亮",
-  "Tapar datos": "遮挡信息",
+  Mosaico: "马赛克",
   "Escribe y pulsa en la imagen": "输入文字后点击图片",
   "Deshacer la última (Ctrl+Z)": "撤销上一步 (Ctrl+Z)",
   "Quitar todas": "全部清除",
