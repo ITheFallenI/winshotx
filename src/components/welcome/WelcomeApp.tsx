@@ -524,7 +524,7 @@ function TeclaImprPant({
         )}
         {estado !== null && !estado.enabled && (
           <p className="text-tenue">
-            {t("Sin cambios. Puedes activarlo más adelante en Ajustes, en “Atajos globales”.")}
+            {t("Sin cambios. Puedes activarlo más adelante en Ajustes, en “Teclas de Windows”.")}
           </p>
         )}
       </div>
@@ -535,7 +535,7 @@ function TeclaImprPant({
             traducir bien por casualidad, porque el orden de las palabras cambia. */}
         <b className="font-medium text-apagado">{t("Win + Mayús + S es otra historia.")}</b>{" "}
         {t(
-          "Esa la atiende Windows antes que cualquier programa y solo se le quita apagando la S de sus atajos, lo que apaga también Win + S, la búsqueda. Por eso va aparte, en Ajustes → Atajos globales, y no entra aquí de propina.",
+          "Esa la atiende Windows antes que cualquier programa y solo se le quita apagando la S de sus atajos, lo que apaga también Win + S, la búsqueda. Por eso va aparte, en Ajustes → Teclas de Windows, y no entra aquí de propina.",
         )}
       </p>
     </div>

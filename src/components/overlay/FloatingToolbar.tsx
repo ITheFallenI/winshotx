@@ -1,4 +1,4 @@
-import { Check, Circle, Copy, Download, FolderDown, Pencil, Pin, Type, X } from "lucide-react";
+import { Check, Circle, Copy, Download, FolderOpen, Pencil, Pin, Type, X } from "lucide-react";
 import type { CaptureMode } from "../../lib/types";
 import { GlassPanel } from "../ui/GlassPanel";
 import { IconButton } from "../ui/IconButton";
@@ -61,6 +61,8 @@ export function FloatingToolbar({
               icon={Copy}
               label={t("Copiar")}
               shortcut="Enter"
+              showLabel
+              accent
               onClick={onCopy}
               disabled={busy}
             />
@@ -72,7 +74,7 @@ export function FloatingToolbar({
               disabled={busy}
             />
             <IconButton
-              icon={FolderDown}
+              icon={FolderOpen}
               label={t("Guardar en…")}
               shortcut={t("Ctrl+Mayús+S")}
               onClick={onSaveAs}
