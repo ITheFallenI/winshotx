@@ -531,10 +531,19 @@ pub struct LectorPorDelante {
 }
 
 impl LectorPorDelante {
-    /// Cuantos fotogramas se leen por delante. Dos: uno que se esta entregando y otro
-    /// listo detras. Mas serian mas fotogramas de ocho megabytes esperando en memoria
-    /// para nada, porque el codificador solo puede con uno a la vez.
-    const POR_DELANTE: usize = 2;
+    /// Cuantos fotogramas se leen por delante.
+    ///
+    /// **Cuatro, medido el 17 de octubre de 2026** exportando 1080p en la maquina de
+    /// Munir, tres corridas de cada: con dos, 29,2 ms por fotograma; con cuatro, 22,8;
+    /// con seis, 31,3. Con dos, un fotograma que tarda mas de la cuenta en leerse (uno
+    /// entero detras de una racha de parches) deja al codificador parado, y eso pasa
+    /// seguido; con seis, los treinta y tres megabytes en vuelo empiezan a estorbar mas
+    /// de lo que ayudan.
+    ///
+    /// En la vista previa del anillo (540p) la diferencia no se ve: ahi el lector va mas
+    /// rapido que el codificador y las medidas se mueven mas entre corridas de lo que
+    /// cambia esto, asi que el numero sale de exportar, que es donde se nota.
+    const POR_DELANTE: usize = 4;
 
     pub fn nuevo(session: SessionData, indices: Vec<usize>) -> Self {
         Self::nuevo_con(session, indices, |fotograma| fotograma)
