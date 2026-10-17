@@ -30,7 +30,7 @@ const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const FRASES = {
   fotograma: ["Fotograma", "Frame"],
   de: ["de", "of"],
-  recorte: ["Recorte", "Trim"],
+  teQuedas: ["Te quedas con", "Keeping"],
   a: ["a", "to"],
   unidad: ["fotograma", "frame"],
   copiar: ["Copiada al portapapeles", "Copied to the clipboard"],
@@ -46,6 +46,9 @@ const FRASES = {
   cartelGif: ["o clic para grabarla entera en GIF", "or click to record it whole to GIF"],
   copiado: ["copiado", "copied"],
   abrirCarpeta: ["abrir carpeta", "open folder"],
+  inicioTrozo: ["Inicio del trozo (tecla I)", "Start of the clip (key I)"],
+  finTrozo: ["Final del trozo (tecla O)", "End of the clip (key O)"],
+  exportar: ["Exportar", "Export"],
   bloqueada: ["Proporción bloqueada", "Aspect ratio locked"],
   libre: ["Proporción libre", "Aspect ratio free"],
 };
@@ -446,7 +449,7 @@ function fotograma(c, w, h, i) {
   c.fill();
   c.fillStyle = "#fff";
   c.font = `600 ${Math.round(h * 0.06)}px ui-sans-serif, system-ui, sans-serif`;
-  c.fillText("Exportar", w * 0.163, h * 0.715);
+  c.fillText(frase("exportar"), w * 0.163, h * 0.715);
 
   if (pulsado) {
     const onda = (t - 0.62) / 0.38;
@@ -500,8 +503,8 @@ const cabezal = document.createElement("div");
   marco.className = "tira-marco";
   tiradorA.className = "tira-tirador a";
   tiradorB.className = "tira-tirador b";
-  tiradorA.title = "Marca A (tecla I)";
-  tiradorB.title = "Marca B (tecla O)";
+  tiradorA.title = frase("inicioTrozo");
+  tiradorB.title = frase("finTrozo");
   tiradorA.innerHTML = tiradorB.innerHTML = "<i></i>";
   cabezal.className = "tira-cabezal";
   tiraLienzo.append(velos.izq, velos.der, marco, tiradorA, tiradorB, cabezal);
@@ -524,10 +527,11 @@ function refrescarEditor() {
   const keptMs = tiempoDe(fuera) + Math.round(1000 / FPS_GRABADO) - tiempoDe(dentro);
   tiraIzq.textContent =
     `${frase("fotograma")} ${actual + 1} ${frase("de")} ${TOTAL} · ${formatTimecode(tiempoDe(actual))}`;
-  tiraDer.textContent = `${frase("recorte")} ${dentro + 1} ${frase("a")} ${fuera + 1} · ` +
+  tiraDer.textContent = `${frase("teQuedas")} ${dentro + 1} ${frase("a")} ${fuera + 1} · ` +
     `${plural(n, frase("unidad"))} · ${formatTimecode(keptMs)}`;
   ediSub.textContent = `${REGION.width} × ${REGION.height} · ${formatTimecode(keptMs)}`;
-  ediTiempo.textContent = formatTimecode(tiempoDe(actual));
+  ediTiempo.innerHTML =
+    `${formatTimecode(tiempoDe(actual))} <span class="edi-tiempo-total">/ ${formatTimecode(keptMs)}</span>`;
   estimar();
 }
 
@@ -622,6 +626,7 @@ formatos.addEventListener("click", (e) => {
   document.querySelectorAll("[data-solo-video]").forEach((c) => (c.hidden = esUnaFoto));
   document.getElementById("fila-bucle").hidden = formato !== "gif";
   document.getElementById("fila-audio").hidden = formato !== "mp4";
+  document.getElementById("btn-guardar-formato").textContent = formato.toUpperCase();
   estimar();
 });
 

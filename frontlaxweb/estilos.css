@@ -470,6 +470,7 @@ h2 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; letter-spacing: -0.03
 .edi-pildora .redondo:hover { background: #ffffff33; }
 .edi-pildora .redondo svg { width: 14px; height: 14px; }
 .edi-tiempo { padding: 0 4px; font: 11px/1 ui-monospace, monospace; color: #d4d4d4; font-variant-numeric: tabular-nums; }
+.edi-tiempo-total { color: #8a8a8a; }
 .edi-pildora .marca {
   display: flex; align-items: center; gap: 4px; padding: 2px 8px; border: 0; border-radius: 999px;
   background: transparent; color: #d4d4d4; font-size: 11px; cursor: pointer; transition: background .12s, color .12s;
@@ -507,7 +508,7 @@ h2 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; letter-spacing: -0.03
   border-left: 1px solid var(--borde); background: #00000033; padding: 16px;
 }
 @media (max-width: 860px) { .edi-cuerpo { flex-direction: column; } .edi-panel { width: auto; border-left: 0; border-top: 1px solid var(--borde); } }
-.edi-rotulo { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 600; color: #d4d4d4; }
+.edi-rotulo { display: block; margin-bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8a8a8a; }
 .segmentado { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 8px; background: #00000066; }
 .segmentado button {
   padding: 6px 0; border: 0; border-radius: 6px; background: transparent;

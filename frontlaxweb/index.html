@@ -28,7 +28,7 @@
 <link rel="icon" href="favicon.ico?v=2" sizes="any">
 <link rel="icon" href="logo.svg?v=2" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
-<link rel="stylesheet" href="estilos.css?v=ca45021c">
+<link rel="stylesheet" href="estilos.css?v=226da913">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -304,7 +304,7 @@
       <a href="docs/" data-en="Docs">Guía</a>
     </span>
     <span class="acciones">
-      <!-- El contador arranca con el ultimo numero conocido y demo.js?v=0a25e860 lo actualiza
+      <!-- El contador arranca con el ultimo numero conocido y demo.js?v=5d93558b lo actualiza
            con el de verdad; si GitHub no contesta, se queda el que hay. -->
       <a class="gh" href="https://github.com/Mun1to/winshotx" rel="noopener" aria-label="GitHub">
         <svg class="gh-marca" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-github"/></svg>
@@ -392,7 +392,7 @@
         <ul>
           <li data-en="GIF and MP4 up to 60 fps, no FFmpeg">GIF y MP4 hasta 60 fotogramas, sin FFmpeg</li>
           <li data-en="System audio and your microphone">Audio del sistema y tu micrófono</li>
-          <li data-en="Zoom on every click, and A to B trimming">Zoom a cada clic, y recorte de A a B</li>
+          <li data-en="Zoom on every click, and trimming the start and the end">Zoom a cada clic, y recortar el principio y el final</li>
         </ul>
       </div>
       <div class="pilar">
@@ -486,8 +486,8 @@
               <button class="redondo" id="reproducir" aria-label="Reproducir" data-aria-en="Play"><svg><use href="#i-play"/></svg></button>
               <span class="edi-tiempo" id="edi-tiempo">0:00.00</span>
               <span class="raya"></span>
-              <button class="marca" data-marca="in" title="Marcar inicio (I)" data-titulo-en="Mark the start (I)"><svg><use href="#i-scissors"/></svg> A</button>
-              <button class="marca" data-marca="out" title="Marcar final (O)" data-titulo-en="Mark the end (O)"><svg class="espejo"><use href="#i-scissors"/></svg> B</button>
+              <button class="marca" data-marca="in" title="Empezar el trozo aquí (I)" data-titulo-en="Start the clip here (I)"><svg><use href="#i-scissors"/></svg> <span data-en="Start">Inicio</span></button>
+              <button class="marca" data-marca="out" title="Terminar el trozo aquí (O)" data-titulo-en="End the clip here (O)"><svg class="espejo"><use href="#i-scissors"/></svg> <span data-en="End">Fin</span></button>
             </div>
           </div>
           <!-- Las seis marcas van sobre el video tambien, no solo sobre una foto. -->
@@ -497,7 +497,7 @@
             <button title="Texto · 3" data-titulo-en="Text · 3"><svg><use href="#i-type"/></svg></button>
             <button title="Resaltar · 4" data-titulo-en="Highlight · 4"><svg><use href="#i-highlighter"/></svg></button>
             <button title="Paso numerado · 5" data-titulo-en="Numbered step · 5"><svg><use href="#i-circle-1"/></svg></button>
-            <button title="Tapar datos · 6" data-titulo-en="Cover private data · 6"><svg><use href="#i-grid"/></svg></button>
+            <button title="Mosaico · 6" data-titulo-en="Pixelate · 6"><svg><use href="#i-grid"/></svg></button>
             <span class="raya"></span>
             <span class="colores">
               <button class="color viva" style="--c:#f43f5e" aria-label="Rojo" data-aria-en="Red"></button>
@@ -584,7 +584,7 @@
               <span id="v-peso">≈ 1,4 MB</span>
             </div>
             <div class="edi-acciones">
-              <button class="azul" id="btn-guardar"><svg><use href="#i-save"/></svg> <span data-en="Save">Guardar</span></button>
+              <button class="azul" id="btn-guardar"><svg><use href="#i-save"/></svg> <span data-en="Save">Guardar</span> <span id="btn-guardar-formato">GIF</span></button>
               <button class="hueco" id="btn-copiar" title="Exportar y copiar al portapapeles" data-titulo-en="Export and copy to the clipboard"><svg><use href="#i-clipboard"/></svg></button>
             </div>
             <!-- El aria-live va en un envoltorio que existe siempre: puesto en el propio
@@ -602,7 +602,7 @@
     <!-- ========================= 3. ajustes ========================= -->
     <div class="marco" id="p-set" hidden>
       <header class="cab-set">
-        <span class="ver-set" data-en="Version 0.2.9">Versión 0.2.9</span>
+        <span class="ver-set" data-en="Version 0.3.2">Versión 0.3.2</span>
         <nav class="pes-set" role="tablist">
           <button class="viva" data-set="s-cap" data-en="Capture">Capturar</button>
           <button data-set="s-gra" data-en="Record">Grabar</button>
@@ -621,6 +621,11 @@
               <span class="txt"><svg class="ico-fila"><use href="#i-camera"/></svg>
                 <span><span data-en="Capture a region">Capturar región</span></span></span>
               <span class="campo-atajo"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>2</kbd></span>
+            </div>
+            <div class="fila">
+              <span class="txt"><svg class="ico-fila"><use href="#i-pencil"/></svg>
+                <span><span data-en="Capture and open the editor">Capturar y abrir el editor</span></span></span>
+              <span class="campo-atajo"><kbd>Win</kbd><kbd>Shift</kbd><kbd>L</kbd></span>
             </div>
             <div class="fila apilada">
               <span class="txt"><svg class="ico-fila"><use href="#i-clock"/></svg>
@@ -901,7 +906,7 @@
           <tr>
             <th scope="row" data-en="Frame by frame editor">Editor fotograma a fotograma</th>
             <td><b class="no"><svg><use href="#i-x"/></svg></b> <span data-en="No">No</span></td>
-            <td class="gana"><b class="si"><svg><use href="#i-check"/></svg></b> <span data-en="Yes, with A and B trim">Sí, con recorte A y B</span></td>
+            <td class="gana"><b class="si"><svg><use href="#i-check"/></svg></b> <span data-en="Yes, trimming start and end">Sí, recortando principio y final</span></td>
           </tr>
           <tr>
             <th scope="row" data-en="Pick your own shortcut">Elegir el atajo de teclado</th>
@@ -1168,6 +1173,6 @@
   </div>
 </footer>
 
-<script src="demo.js?v=0a25e860"></script>
+<script src="demo.js?v=5d93558b"></script>
 </body>
 </html>
