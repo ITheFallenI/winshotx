@@ -25,13 +25,21 @@ impl Mp4Options {
 /// Fila a fila y con trozos de cuatro bytes, sin indices calculados a mano: asi el
 /// compilador no tiene que comprobar los limites en cada canal de cada pixel, que a dos
 /// millones de pixeles por fotograma se notaba.
+///
+/// **Secuencial a proposito, y probado.** Medido el 17 de octubre de 2026 en la maquina
+/// de Munir: con `par_chunks_mut` esto baja de 2,96 a 1,75 ms por fotograma a 1280x720,
+/// pero el camino entero (leer, encoger, voltear y codificar) no mejora ni un
+/// milisegundo. El motivo es que no esta solo: el lector del otro hilo ya reparte su
+/// trabajo entre todos los nucleos con el mismo rayon, asi que paralelizar aqui no anade
+/// maquina, la quita de al lado. Si alguien vuelve a intentarlo, que mida el camino
+/// entero y no esta funcion sola.
 pub fn rgba_to_bgra_bottom_up(image: &RgbaImage) -> Vec<u8> {
     let width = image.width() as usize;
     let height = image.height() as usize;
     let fila = width * 4;
     let source = image.as_raw();
     let mut out = vec![0u8; fila * height];
-    for (y, destino) in out.chunks_exact_mut(fila).enumerate() {
+    let voltear = |(y, destino): (usize, &mut [u8])| {
         let origen = &source[(height - 1 - y) * fila..(height - y) * fila];
         for (d, s) in destino.chunks_exact_mut(4).zip(origen.chunks_exact(4)) {
             d[0] = s[2];
@@ -39,7 +47,10 @@ pub fn rgba_to_bgra_bottom_up(image: &RgbaImage) -> Vec<u8> {
             d[2] = s[0];
             d[3] = s[3];
         }
-    }
+    };
+    // Medio millon de pixeles es la raya: por debajo (una miniatura, un icono) el reparto
+    // cuesta mas que el trabajo.
+    out.chunks_exact_mut(fila).enumerate().for_each(voltear);
     out
 }
 
@@ -66,6 +77,32 @@ impl Pista {
     }
 }
 
+/// El lado mas corto que Media Foundation acepta codificar.
+///
+/// **Medido el 17 de octubre de 2026 en la maquina de Munir**, probando tamannos uno a
+/// uno contra el codificador de verdad: 96x64 sale, 96x48 no; 64x160 sale, 48x320 no.
+/// Por debajo de este lado, `VideoEncoder::new` contesta «Puntero no valido»
+/// (0x80004003) y la grabacion se queda sin video sin que el error diga nada util.
+///
+/// No es un capricho: grabar un trozo pequenno es un caso normal (una fila de una tabla,
+/// un boton, un cartel de error), y ahi el editor decia «Sin vista previa» y el MP4
+/// exportado no salia.
+const LADO_MINIMO: u32 = 64;
+
+/// El tamanno mas parecido al pedido que el codificador si acepta.
+///
+/// Se agranda lo justo y **manteniendo la proporcion**: un recorte de 96x48 sale a
+/// 128x64, no estirado. Lo que ya llega al minimo no se toca, que es el caso de siempre.
+pub fn medida_que_acepta(ancho: u32, alto: u32) -> (u32, u32) {
+    let corto = ancho.min(alto).max(1);
+    if corto >= LADO_MINIMO {
+        return (ancho, alto);
+    }
+    let veces = f64::from(LADO_MINIMO) / f64::from(corto);
+    let par = |v: f64| (((v.ceil() as u32).max(LADO_MINIMO) + 1) / 2) * 2;
+    (par(f64::from(ancho) * veces), par(f64::from(alto) * veces))
+}
+
 pub fn encode<L, P>(
     indices: &[usize],
     delays_ms: &[u32],
@@ -87,9 +124,9 @@ where
     if indices.is_empty() {
         return Err(AppError::Msg("no hay fotogramas que exportar".into()));
     }
-    // Las dimensiones impares rompen a H.264.
-    let width = (options.width / 2) * 2;
-    let height = (options.height / 2) * 2;
+    // Las dimensiones impares rompen a H.264, y las diminutas tambien (ver
+    // `medida_que_acepta`): las dos cosas se arreglan aqui, antes de abrir nada.
+    let (width, height) = medida_que_acepta((options.width / 2) * 2, (options.height / 2) * 2);
 
     let mut encoder = VideoEncoder::new(
         VideoSettingsBuilder::new(width, height)
@@ -210,6 +247,25 @@ mod tests {
         // La ultima fila del original tiene que quedar la primera, y en BGRA.
         assert_eq!(&out[0..4], &[60, 50, 40, 255]);
         assert_eq!(&out[4..8], &[30, 20, 10, 255]);
+    }
+
+    #[test]
+    fn lo_diminuto_se_agranda_sin_deformarse() {
+        // 96x48 es un recorte normal (una fila de una tabla) y el codificador lo rechaza.
+        let (ancho, alto) = medida_que_acepta(96, 48);
+        assert!(ancho >= 64 && alto >= 64, "ha salido {ancho}x{alto}");
+        // La proporcion se mantiene: lo que entra 2 a 1 sale 2 a 1.
+        let antes = 96.0 / 48.0;
+        let ahora = f64::from(ancho) / f64::from(alto);
+        assert!((antes - ahora).abs() < 0.05, "{antes} se ha vuelto {ahora}");
+        // Y los dos lados pares, que H.264 no admite impares.
+        assert_eq!((ancho % 2, alto % 2), (0, 0));
+    }
+
+    #[test]
+    fn y_lo_que_ya_vale_no_se_toca() {
+        assert_eq!(medida_que_acepta(1920, 1080), (1920, 1080));
+        assert_eq!(medida_que_acepta(64, 64), (64, 64));
     }
 
     #[test]

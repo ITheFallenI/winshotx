@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod bench_gif;
+#[cfg(test)]
+mod bench_previa;
 pub mod anotacion;
 pub mod cursor;
 pub mod escalar;

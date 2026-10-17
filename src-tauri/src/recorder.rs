@@ -389,11 +389,11 @@ pub fn start(app: &AppHandle, region: Rect, options: RecordOptions) -> Result<Se
                 writer_bytes.store(cache.bytes_written(), Ordering::Relaxed);
             }
             if let Some(enc) = encoder.as_mut().filter(|_| para_vista_previa) {
-                if enc
-                    .send_frame_buffer(&dado_la_vuelta, frame.ts_ms as i64 * 10_000)
-                    .is_err()
+                if let Err(error) = enc.send_frame_buffer(&dado_la_vuelta, frame.ts_ms as i64 * 10_000)
                 {
                     // Si el codificador falla, la grabacion sigue: el cache es la fuente real.
+                    // La vista previa se reescribe luego, en `entregar`.
+                    eprintln!("[winshotx] se ha caido la vista previa en vivo: {error}");
                     encoder = None;
                 }
             }
@@ -536,6 +536,18 @@ fn build_preview_encoder(
     };
 
     let path = session.mp4_path.as_ref()?;
+    // Un trozo diminuto no lo codifica Media Foundation (ver `mp4::medida_que_acepta`), y
+    // el codificador en vivo no puede agrandarlo: recibe los fotogramas tal cual salen de
+    // la pantalla. Se deja para despues, que es cuando se puede escalar.
+    if crate::encode::mp4::medida_que_acepta(session.width, session.height)
+        != (session.width, session.height)
+    {
+        eprintln!(
+            "[winshotx] {}x{} es demasiado pequenno para el codificador en vivo: la vista previa se escribe al terminar",
+            session.width, session.height
+        );
+        return None;
+    }
     let options = crate::encode::mp4::Mp4Options {
         width: session.width,
         height: session.height,
@@ -560,6 +572,12 @@ fn build_preview_encoder(
         ContainerSettingsBuilder::default(),
         path,
     )
+    .inspect_err(|error| {
+        // Sin esto, una grabacion sin vista previa no dejaba ni una linea: el editor abria
+        // con el play apagado y no habia forma de saber por que.
+        eprintln!("[winshotx] sin vista previa en vivo ({}x{} a {} fps): {error}",
+            session.width, session.height, session.fps);
+    })
     .ok()
 }
 
@@ -705,6 +723,16 @@ fn entregar(app: &AppHandle, session: SessionData, open_editor: bool, barra: Opt
                 let _ = app.emit(EVENT_SESSION_THUMBS, session.id.clone());
             }
             Err(error) => eprintln!("[winshotx] sin miniaturas para la tira: {error}"),
+        }
+        // Y si la vista previa en vivo no llego a escribirse, se escribe ahora por detras,
+        // por el mismo camino que el rescate del anillo. El editor ya esta abierto y
+        // escucha ese aviso, asi que el play se enciende solo cuando esta.
+        //
+        // Antes esto no existia y la sesion llegaba sin MP4 y sin nadie que avisara: el
+        // cartel de «preparando la reproduccion» se quedaba para siempre, sin porcentaje,
+        // con el play apagado y sin decir que no iba a venir.
+        if session.mp4_path.is_none() {
+            crate::replay::preparar_por_detras(app, session.id.clone());
         }
     } else {
         // Sin editor, la grabacion se guarda sola en la carpeta de siempre, con los mismos
