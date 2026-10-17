@@ -731,9 +731,9 @@ impl Cocina {
             fps: self.fps,
             con_cursor: self.con_cursor,
         };
-        // Coser treinta segundos y sacar sus miniaturas tarda lo suyo, y mientras tanto el
-        // anillo tiene que seguir tragando fotogramas: si se parara, el hueco caeria justo
-        // en los segundos siguientes a lo que alguien acaba de guardar.
+        // Coser treinta segundos tarda lo suyo, y mientras tanto el anillo tiene que
+        // seguir tragando fotogramas: si se parara, el hueco caeria justo en los segundos
+        // siguientes a lo que alguien acaba de guardar.
         let app = self.app.clone();
         std::thread::spawn(move || {
             if let Err(error) = servir(&app, encargo) {
@@ -784,17 +784,30 @@ fn servir(app: &AppHandle, encargo: Encargo) -> Result<SessionInfo> {
             eprintln!("no se ha podido abrir el editor: {error}");
         }
     });
-    preparar_vista_previa(app, id);
+    preparar_por_detras(app, id);
     avisar(app);
     Ok(info)
 }
 
-/// Escribe el MP4 de vista previa POR DETRAS, con el editor ya abierto.
+/// Escribe POR DETRAS lo que el editor no necesita para abrirse: el MP4 de la vista
+/// previa primero y las miniaturas de la tira despues.
+///
+/// **En ese orden y en un solo hilo.** El play es la funcion principal del editor y la
+/// tira se ve igual con huecos, asi que el video va delante; y en un hilo porque los dos
+/// trabajos leen el mismo cache y ya usan todos los nucleos por dentro: a la vez solo se
+/// quitarian tiempo el uno al otro.
 ///
 /// Es lo que el editor sabe reproducir: quien mueve los fotogramas al darle al play es el
 /// `<video>`, y sin video el boton no hace absolutamente nada. La grabacion normal lo
 /// escribe mientras graba, en streaming y casi gratis; el anillo no puede, porque hasta que
 /// alguien pulsa la tecla no se sabe donde empieza lo que se va a guardar.
+///
+/// **Tambien la llama la grabacion normal cuando su codificador en vivo se ha caido**
+/// (`recorder::entregar`). Antes, esa sesion llegaba al editor con `mp4_path` a nada y sin
+/// nadie que avisara nunca: el cartel de «preparando la reproduccion» se quedaba puesto
+/// para siempre, sin porcentaje y sin fallo, con el play apagado. Escribirla por aqui
+/// cuesta unos segundos y deja la grabacion reproducible; si tampoco se puede, al menos
+/// sale el aviso de que no va a venir.
 ///
 /// **Y no se puede hacer antes de abrir el editor.** Medido el 29 de agosto de 2026:
 /// Media Foundation tarda unos 26 ms por fotograma a 1080p, asi que treinta segundos son
@@ -803,7 +816,7 @@ fn servir(app: &AppHandle, encargo: Encargo) -> Result<SessionInfo> {
 ///
 /// El aviso sale **pase lo que pase**, tambien cuando falla: un editor esperando para
 /// siempre a algo que no viene es peor que un editor que dice que no va a venir.
-fn preparar_vista_previa(app: &AppHandle, id: String) {
+pub(crate) fn preparar_por_detras(app: &AppHandle, id: String) {
     let app = app.clone();
     std::thread::spawn(move || {
         let state = app.state::<AppState>();
@@ -828,8 +841,23 @@ fn preparar_vista_previa(app: &AppHandle, id: String) {
             return;
         }
         let _ = session.persist();
-        state.sessions.write().insert(id.clone(), session);
+        state.sessions.write().insert(id.clone(), session.clone());
         let _ = app.emit(crate::EVENT_SESSION_PREVIEW, AvisoVistaPrevia::lista(&id));
+
+        // Y ahora la tira. Lo que viene de una grabacion normal ya las trae hechas, asi
+        // que no se repiten: son cuatro milisegundos por fotograma tirados.
+        if session.frames.iter().any(|f| f.thumb_path.is_empty()) {
+            match record::generate_thumbnails(&mut session) {
+                Ok(()) => {
+                    let _ = session.persist();
+                    state.sessions.write().insert(id.clone(), session);
+                    let _ = app.emit(crate::recorder::EVENT_SESSION_THUMBS, id.clone());
+                }
+                // Sin miniaturas la tira ensenna huecos, pero el video y la exportacion
+                // van igual: no es motivo para tirar nada.
+                Err(error) => eprintln!("[replay] sin miniaturas para la tira: {error}"),
+            }
+        }
     });
 }
 
@@ -881,7 +909,9 @@ impl AvisoVistaPrevia {
 }
 
 /// Todo el trabajo de convertir el anillo en una sesion: coser los fotogramas, cortar el
-/// sonido, poner los relojes a cero y sacar las miniaturas.
+/// sonido y poner los relojes a cero. Las miniaturas NO: se sacan despues de abrir el
+/// editor, en `preparar_por_detras`, que son cuatro milisegundos por fotograma y aqui
+/// se pagarian con la ventana todavia sin salir.
 ///
 /// Va aparte de `servir` para poder probarlo sin una aplicacion de Tauri delante. Lo que
 /// hay que comprobar de esto no es que se abra una ventana, es que el archivo que sale se
@@ -915,7 +945,7 @@ fn montar(dir: std::path::PathBuf, id: String, encargo: Encargo) -> Result<Sessi
         _ => None,
     };
 
-    let mut session = SessionData {
+    let session = SessionData {
         id,
         dir,
         region: encargo.region,
@@ -942,7 +972,6 @@ fn montar(dir: std::path::PathBuf, id: String, encargo: Encargo) -> Result<Sessi
         cambios_puntero: Vec::new(),
         frames,
     };
-    record::generate_thumbnails(&mut session)?;
     session.persist()?;
     Ok(session)
 }
@@ -951,7 +980,13 @@ fn montar(dir: std::path::PathBuf, id: String, encargo: Encargo) -> Result<Sessi
 ///
 /// Se ve en un hueco de unos 750 px de ancho dentro de una ventana; escribirla a 1080
 /// era escribir cuatro veces mas pixeles de los que se llegan a mirar.
-const ALTO_VISTA_PREVIA: u32 = 720;
+///
+/// **Y 540 en vez de 720 porque el play esta apagado hasta que esto termina.** Medido el
+/// 16 de octubre de 2026 en la maquina de Munir, con los 900 fotogramas que salen de su
+/// anillo (treinta segundos a 60, servidos a 30): a 720 son 9,8 segundos de espera y a
+/// 540 son 5,3. En el hueco del editor, que no llega a 750 px de ancho, no se distingue
+/// uno de otro; lo que se exporta no pasa por aqui y sigue saliendo a tamanno completo.
+const ALTO_VISTA_PREVIA: u32 = 540;
 
 /// Y a cuantos fotogramas por segundo, como mucho.
 const FPS_VISTA_PREVIA: u32 = 30;
@@ -1196,14 +1231,155 @@ mod tests {
             let imagen = record::read_frame(&session, indice).unwrap();
             assert_eq!((imagen.width(), imagen.height()), (ancho, alto));
         }
-        // Con sus miniaturas ya en el disco: es lo que pinta la tira de tiempo.
+        // Y SIN miniaturas: montar ya no las hace, porque son cuatro milisegundos por
+        // fotograma con el editor sin abrir todavia. Las saca `preparar_por_detras`
+        // cuando la ventana ya esta delante, que es justo lo que se comprueba aqui.
         assert!(
-            std::path::Path::new(&session.frames[0].thumb_path).exists(),
+            session.frames[0].thumb_path.is_empty(),
+            "montar ha vuelto a sacar las miniaturas: eso retrasa la ventana"
+        );
+        let mut con_tira = session.clone();
+        record::generate_thumbnails(&mut con_tira).expect("las miniaturas tienen que salir");
+        assert!(
+            std::path::Path::new(&con_tira.frames[0].thumb_path).exists(),
             "la miniatura del primer fotograma no llego al disco"
         );
 
         anillo.limpiar();
         let _ = std::fs::remove_dir_all(&raiz);
+    }
+
+    /// **Una grabacion corta tambien tiene vista previa.**
+    ///
+    /// Munir, 17 de octubre de 2026: el editor le decia «Sin vista previa» con una
+    /// grabacion de verdad. Eso solo sale cuando `escribir_vista_previa` falla, asi que
+    /// aqui se prueba con lo que mas facil se rompe: una sesion de un solo fotograma, una
+    /// de dos, y una con sonido.
+    #[test]
+    fn la_vista_previa_sale_aunque_la_grabacion_sea_cortisima() {
+        let (ancho, alto) = (64u32, 48u32);
+        for cuantos in [1usize, 2, 5] {
+            let dir = std::env::temp_dir().join(format!("winshotx-previa-corta-{cuantos}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            let mut cache = crate::record::FrameCache::new(&dir).unwrap();
+            for i in 0..cuantos {
+                let frame = pantalla(ancho, alto, i as u32);
+                cache.push_rgba(&frame, ancho, alto, i as u64 * 33).unwrap();
+            }
+            let frames = cache.finish(cuantos as u64 * 33, 30).unwrap();
+            let mut session = SessionData {
+                id: format!("corta-{cuantos}"),
+                dir: dir.clone(),
+                region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },
+                fps: 30,
+                format: "mp4".into(),
+                has_audio: false,
+                width: ancho,
+                height: alto,
+                mp4_path: None,
+                audio: None,
+                clics: Vec::new(),
+                teclas: Vec::new(),
+                cursor: Vec::new(),
+                cursor_capturado: false,
+                formas: Vec::new(),
+                punteros: Vec::new(),
+                cambios_puntero: Vec::new(),
+                frames,
+            };
+            let salida = escribir_vista_previa(&mut session, |_, _| {});
+            assert!(
+                salida.is_ok(),
+                "con {cuantos} fotogramas la vista previa ha fallado: {:?}",
+                salida.err()
+            );
+            let ruta = session.mp4_path.clone().expect("no ha quedado ruta de video");
+            assert!(ruta.exists(), "el mp4 de {cuantos} fotogramas no llego al disco");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    /// **Lo que se espera con el play apagado, partido en sus dos trozos.**
+    ///
+    /// `cargo test --release --lib medir_la_vista_previa -- --ignored --nocapture`
+    ///
+    /// Rescatar los ultimos segundos abre el editor sin video y lo escribe por detras: ese
+    /// rato el boton de play no hace nada. Aqui se mide cuanto cuesta LEER del cache (QOI,
+    /// las zonas del delta y el encogido) y cuanto CODIFICAR, porque solo el trozo gordo
+    /// merece que se le toque.
+    #[test]
+    #[ignore = "mide, no comprueba: pide release y maquina tranquila"]
+    fn medir_la_vista_previa() {
+        use std::time::Instant;
+
+        let (ancho, alto, cuantos) = (1920u32, 1080u32, 900u32);
+        let dir = std::env::temp_dir().join("winshotx-bench-vista-previa");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut cache = crate::record::FrameCache::new(&dir).unwrap();
+        for i in 0..cuantos {
+            let frame = pantalla(ancho, alto, i);
+            cache.push_rgba(&frame, ancho, alto, u64::from(i) * 33).unwrap();
+        }
+        let frames = cache.finish(u64::from(cuantos) * 33, 30).unwrap();
+        println!("\n[cache] {} fotogramas de {ancho}x{alto}", frames.len());
+
+        let mut session = SessionData {
+            id: "bench-previa".into(),
+            dir: dir.clone(),
+            region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },
+            fps: 30,
+            format: "mp4".into(),
+            has_audio: false,
+            width: ancho,
+            height: alto,
+            mp4_path: None,
+            audio: None,
+            clics: Vec::new(),
+            teclas: Vec::new(),
+            cursor: Vec::new(),
+            cursor_capturado: false,
+            formas: Vec::new(),
+            punteros: Vec::new(),
+            cambios_puntero: Vec::new(),
+            frames,
+        };
+
+        // Primero el trozo de leer, solo: los mismos fotogramas que pedira la vista previa,
+        // leidos y encogidos, sin codificar nada.
+        let duraciones: Vec<u32> = session.frames.iter().map(|f| f.duration_ms).collect();
+        let (indices, _) = a_ritmo(&duraciones, FPS_VISTA_PREVIA);
+        let (w, h) = crate::encode::escalar::medida_para(ancho, alto, ALTO_VISTA_PREVIA)
+            .unwrap_or((ancho, alto));
+        let mut lector = record::LectorPorDelante::nuevo_con(
+            session.clone(),
+            indices.clone(),
+            move |f| {
+                if f.dimensions() == (w, h) { f } else { crate::encode::escalar::reducir(&f, w, h) }
+            },
+        );
+        let reloj = Instant::now();
+        for i in &indices {
+            let _ = lector.en(*i).unwrap();
+        }
+        let leer = reloj.elapsed().as_secs_f64() * 1000.0;
+        drop(lector);
+        println!(
+            "[leer] {} fotogramas a {w}x{h}: {leer:.0} ms ({:.1} ms/fotograma)",
+            indices.len(),
+            leer / indices.len() as f64
+        );
+
+        // Y ahora el camino entero, que es lo que de verdad se espera.
+        let reloj = Instant::now();
+        escribir_vista_previa(&mut session, |_, _| {}).unwrap();
+        let entero = reloj.elapsed().as_secs_f64() * 1000.0;
+        let bytes = std::fs::metadata(dir.join("preview.mp4")).map(|m| m.len()).unwrap_or(0);
+        println!(
+            "[entero] {entero:.0} ms ({:.1} ms/fotograma), {:.1} MB",
+            entero / indices.len() as f64,
+            bytes as f64 / 1_048_576.0
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 
