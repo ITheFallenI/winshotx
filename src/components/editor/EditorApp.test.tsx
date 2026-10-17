@@ -290,6 +290,30 @@ describe("el botón de reproducir", () => {
     expect(screen.queryByText(/Fotograma 1 de/)).toBeNull();
   });
 
+  it("y si el aviso se pierde, el play se enciende igual", async () => {
+    // El aviso viaja por un evento, y uno que se emite antes de que esta ventana monte su
+    // escucha no lo recoge nadie. Paso de verdad el 17 de octubre de 2026, en cuanto la
+    // vista previa empezo a tardar un segundo en vez de diez: el editor se quedo con
+    // «preparando el video… 100%» y el MP4 ya estaba escrito en el disco.
+    await abrirRescatada();
+    expect(hayPlay()).toBeNull();
+
+    // El backend ya tiene el video, pero aqui no llega ningun evento: solo la pregunta
+    // que el editor hace por su cuenta cada dos segundos.
+    responde("session_info", {
+      id: "s1",
+      region: VERTICAL,
+      fps: 30,
+      frameCount: 3,
+      durationMs: 100,
+      hasAudio: false,
+      format: "mp4",
+      mp4Path: "C:\\t\\preview.mp4",
+    });
+
+    await waitFor(() => expect(hayPlay()).not.toBeNull(), { timeout: 6000 });
+  }, 10000);
+
   it("pulsarlo le habla al vídeo, en el mismo clic", async () => {
     // El `play()` tiene que salir del clic: lanzado desde un efecto de después llega ya
     // fuera del gesto de la persona, y ahí un navegador puede rechazarlo sin más.

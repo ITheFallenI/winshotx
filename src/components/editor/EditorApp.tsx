@@ -393,6 +393,27 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
     };
   }, [sessionId]);
   /**
+   * Y por si ese aviso no llega: mientras no haya vídeo, se pregunta cada dos segundos.
+   *
+   * El aviso viaja por un evento, y un evento que se emite antes de que esta ventana
+   * termine de montar su escucha no lo recoge nadie. Eso no pasaba cuando la vista previa
+   * tardaba diez segundos, y empezó a pasar el día que empezó a tardar uno: el editor se
+   * quedaba con «preparando el vídeo… 100%» puesto para siempre con el MP4 ya escrito en
+   * el disco. Preguntar de vez en cuando cuesta nada y no depende de llegar a tiempo.
+   */
+  useEffect(() => {
+    if (!session || session.mp4Path || session.format === "still" || previaFallida) return;
+    const reloj = window.setInterval(() => {
+      void sessionInfo(sessionId)
+        .then((info) => {
+          if (info.mp4Path) setSession(info);
+        })
+        .catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(reloj);
+  }, [session, sessionId, previaFallida]);
+
+  /**
    * Las miniaturas de la tira llegan DESPUÉS de que el editor abra: al parar se abre
    * enseguida, sin esperarlas, y cuando están en disco Rust avisa y se vuelven a pedir los
    * fotogramas, ya con sus rutas. Hasta entonces la tira enseña huecos.

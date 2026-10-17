@@ -842,6 +842,7 @@ pub(crate) fn preparar_por_detras(app: &AppHandle, id: String) {
         }
         let _ = session.persist();
         state.sessions.write().insert(id.clone(), session.clone());
+        eprintln!("[replay] vista previa lista: {}", ruta_de(&session));
         let _ = app.emit(crate::EVENT_SESSION_PREVIEW, AvisoVistaPrevia::lista(&id));
 
         // Y ahora la tira. Lo que viene de una grabacion normal ya las trae hechas, asi
@@ -859,6 +860,15 @@ pub(crate) fn preparar_por_detras(app: &AppHandle, id: String) {
             }
         }
     });
+}
+
+/// Donde ha quedado el video, para decirlo en el log.
+fn ruta_de(session: &SessionData) -> String {
+    session
+        .mp4_path
+        .as_ref()
+        .map(|r| r.display().to_string())
+        .unwrap_or_else(|| "sin ruta".into())
 }
 
 /// Como va la vista previa que se esta escribiendo por detras.
@@ -1296,6 +1306,127 @@ mod tests {
             let ruta = session.mp4_path.clone().expect("no ha quedado ruta de video");
             assert!(ruta.exists(), "el mp4 de {cuantos} fotogramas no llego al disco");
             let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    /// **Y con sonido tambien, que es como graba Munir.**
+    ///
+    /// 17 de octubre de 2026: el editor se quedaba en «preparando el video… 100%» para
+    /// siempre con una grabacion de 74x40 CON audio del sistema y microfono. El 100% es
+    /// el ultimo fotograma mandado, asi que lo que se quedaba colgado era el cierre.
+    /// Esta prueba corre el camino en otro hilo y se planta si tarda mas de medio minuto.
+    #[test]
+    fn la_vista_previa_con_sonido_no_se_queda_colgada() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let (ancho, alto) = (74u32, 40u32);
+        let dir = std::env::temp_dir().join("winshotx-previa-con-sonido");
+        let _ = std::fs::remove_dir_all(&dir);
+        // Trece fotogramas en tres segundos: es lo que deja una pantalla quieta, donde
+        // solo cambia un parpadeo al principio y el ultimo fotograma dura dos segundos y
+        // medio. Esa fue la grabacion de Munir que dejo el editor en «100%».
+        let mut cache = crate::record::FrameCache::new(&dir).unwrap();
+        for i in 0..13u32 {
+            let frame = pantalla(ancho, alto, i);
+            cache.push_rgba(&frame, ancho, alto, u64::from(i) * 33).unwrap();
+        }
+        let frames = cache.finish(3_000, 30).unwrap();
+
+        // Tres segundos de sonido de verdad: 48 kHz, dos canales, PCM de 16 bits.
+        let info = crate::record::AudioInfo { channels: 2, sample_rate: 48_000 };
+        let muestras = 48_000 * 3;
+        let mut pcm = Vec::with_capacity(muestras * 4);
+        for n in 0..muestras {
+            let v = ((n as f32 / 40.0).sin() * 8_000.0) as i16;
+            pcm.extend_from_slice(&v.to_le_bytes());
+            pcm.extend_from_slice(&v.to_le_bytes());
+        }
+        std::fs::write(dir.join("audio.pcm"), &pcm).unwrap();
+
+        let session = SessionData {
+            id: "con-sonido".into(),
+            dir: dir.clone(),
+            region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },
+            fps: 30,
+            format: "mp4".into(),
+            has_audio: true,
+            width: ancho,
+            height: alto,
+            mp4_path: None,
+            audio: Some(info),
+            clics: Vec::new(),
+            teclas: Vec::new(),
+            cursor: Vec::new(),
+            cursor_capturado: false,
+            formas: Vec::new(),
+            punteros: Vec::new(),
+            cambios_puntero: Vec::new(),
+            frames,
+        };
+
+        let (avisa, espera) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut suya = session;
+            let salida = escribir_vista_previa(&mut suya, |_, _| {});
+            let _ = avisa.send(salida.map(|()| suya.mp4_path.clone()));
+        });
+        match espera.recv_timeout(Duration::from_secs(30)) {
+            Ok(Ok(Some(ruta))) => assert!(ruta.exists(), "no ha llegado el mp4 al disco"),
+            Ok(Ok(None)) => panic!("ha terminado sin dejar ruta de video"),
+            Ok(Err(error)) => panic!("la vista previa con sonido ha fallado: {error}"),
+            Err(_) => panic!(
+                "la vista previa con sonido se ha quedado colgada: eso es el «100%» que no avanza"
+            ),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// La vista previa de una sesion DE VERDAD, de las que quedan en el disco.
+    ///
+    /// `WINSHOTX_SESION=C:\...\Temp\winshotx\sessions\xxxx cargo test --release --lib
+    /// la_vista_previa_de_una_sesion_del_disco -- --ignored --nocapture`
+    ///
+    /// Existe porque el 17 de octubre de 2026 el editor se quedo en «100%» con una
+    /// grabacion de Munir y ninguna sesion inventada lo reproducia. Con la suya delante,
+    /// o se cuelga aqui tambien o el problema no esta en escribir el video.
+    #[test]
+    #[ignore = "necesita una sesion de verdad en WINSHOTX_SESION"]
+    fn la_vista_previa_de_una_sesion_del_disco() {
+        use std::sync::mpsc;
+        use std::time::{Duration, Instant};
+
+        let dir = std::env::var("WINSHOTX_SESION").expect("falta WINSHOTX_SESION");
+        let dir = std::path::PathBuf::from(dir);
+        let texto = std::fs::read_to_string(dir.join("session.json")).expect("sin session.json");
+        let mut session: SessionData = serde_json::from_str(&texto).expect("session.json ilegible");
+        // La carpeta puede haberse movido: manda la que se pasa.
+        session.dir = dir.clone();
+        println!(
+            "sesion {}: {}x{}, {} fotogramas, {} ms, audio={:?}",
+            session.id,
+            session.width,
+            session.height,
+            session.frames.len(),
+            session.duration_ms(),
+            session.audio
+        );
+
+        let (avisa, espera) = mpsc::channel();
+        let reloj = Instant::now();
+        std::thread::spawn(move || {
+            let mut suya = session;
+            let salida = escribir_vista_previa(&mut suya, |hechos, total| {
+                if hechos % 50 == 0 || hechos + 1 == total {
+                    println!("  {hechos}/{total}");
+                }
+            });
+            let _ = avisa.send(salida.map(|()| suya.mp4_path.clone()));
+        });
+        match espera.recv_timeout(Duration::from_secs(60)) {
+            Ok(Ok(ruta)) => println!("ha terminado en {:?}: {ruta:?}", reloj.elapsed()),
+            Ok(Err(error)) => panic!("ha fallado: {error}"),
+            Err(_) => panic!("SE HA COLGADO: un minuto sin terminar, que es el «100%» que no avanza"),
         }
     }
 
