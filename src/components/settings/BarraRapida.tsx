@@ -81,7 +81,7 @@ export function BarraRapida({ settings, patch, version, recienActualizado, onTou
 
       <span className="h-5 w-px bg-linea" />
 
-      <span className="text-[11px] text-tenue">{t("Al soltar")}</span>
+      <span className="text-[11px] text-apagado">{t("Al soltar")}</span>
       <Segmented
         compacto
         ajustado

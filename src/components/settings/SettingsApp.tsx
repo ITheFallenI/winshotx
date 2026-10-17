@@ -430,9 +430,12 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
         onSalir={() => void quitApp()}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        {/* Dos columnas, que es para lo que se subio la navegacion arriba: cada seccion
-            tiene dos bloques y asi la mas cargada cabe entera sin rueda. */}
+      <div className="relative min-h-0 flex-1">
+      <div className="h-full overflow-y-auto px-4 py-4" data-scroll-ajustes>
+        {/* Dos columnas, que es para lo que se subio la navegacion arriba. Las columnas
+            de las secciones con cuatro bloques se escriben a mano (ver «grabar» y «la
+            app»): dejandoselo a la rejilla, los dos bloques largos caian del mismo lado
+            y se salian de la ventana con la otra columna a medio llenar. */}
         <div className="grid grid-cols-2 items-start gap-4">
 
             {seccion === "capturar" && (
@@ -575,6 +578,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
 
             {seccion === "grabar" && (
               <>
+                <div className="flex flex-col">
                 <Section title={t("Cómo se graba")} tour="como-se-graba">
                   <Row
                     icon={<Video className="size-4" />}
@@ -644,11 +648,32 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                 </Section>
 
 
+                {/* Con las cortas, no debajo de los ultimos segundos: ahi no entraba
+                    en la ventana ni subiendola. */}
+                <Section title={t("Al terminar")}>
+                  <Row
+                    icon={<SquarePen className="size-4" />}
+                    label={t("Abrir el editor al terminar")}
+                    explicacion={t("Al parar una grabación, abrirla para recortarla y exportarla. Apagado, el vídeo o el GIF se guarda solo en tu carpeta, entero y tal cual se grabó, y tú sigues a lo tuyo. Lo que rescatas de los últimos segundos abre el editor igualmente: ahí todavía no hay ningún archivo hecho.")}
+                    control={
+                      <Switch
+                        checked={settings.openEditorAfterRecording}
+                        onChange={(v) => patch({ openEditorAfterRecording: v })}
+                        label={t("Abrir el editor al terminar")}
+                      />
+                    }
+                  />
+                </Section>
+                </div>
+                <div className="flex flex-col">
                 {/* Los ultimos segundos.
 
                     Cinco filas en vez de tres y aun asi mas corta que antes: los controles
                     van AL LADO de su nombre y no debajo, que era lo que obligaba a bajar
-                    con la rueda para ver la seccion entera. */}
+                    con la rueda para ver la seccion entera.
+
+                    Va en la columna de la derecha, ella sola, porque es la mas alta de la
+                    pantalla: en la izquierda empujaba al resto fuera de la ventana. */}
                 <Section title={t("Los últimos segundos")}>
                   <Row
                     icon={<History className="size-4" />}
@@ -797,22 +822,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                   />
                 </Section>
 
-                {/* Debajo del sonido y no en la otra columna: con tres bloques, la
-                    rejilla mandaria este a la izquierda y dejaria la derecha a medias. */}
-                <Section title={t("Al terminar")} className="col-start-2">
-                  <Row
-                    icon={<SquarePen className="size-4" />}
-                    label={t("Abrir el editor al terminar")}
-                    explicacion={t("Al parar una grabación, abrirla para recortarla y exportarla. Apagado, el vídeo o el GIF se guarda solo en tu carpeta, entero y tal cual se grabó, y tú sigues a lo tuyo. Lo que rescatas de los últimos segundos abre el editor igualmente: ahí todavía no hay ningún archivo hecho.")}
-                    control={
-                      <Switch
-                        checked={settings.openEditorAfterRecording}
-                        onChange={(v) => patch({ openEditorAfterRecording: v })}
-                        label={t("Abrir el editor al terminar")}
-                      />
-                    }
-                  />
-                </Section>
+                </div>
               </>
             )}
 
@@ -1040,13 +1050,13 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     }
                   />
                   <Row
+                    stacked
                     icon={<Languages className="size-4" />}
                     label={t("Idioma")}
                     explicacion={t("Español, inglés, o el de Windows si winshotx lo habla. Cambia al momento y no hace falta reiniciar nada.")}
                     hint={settings.language === "sistema" ? t("el de Windows") : undefined}
                     control={
                       <Segmented
-                        ajustado
                         value={settings.language}
                         options={idiomas}
                         onChange={(v) => {
@@ -1102,6 +1112,9 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
               </>
             )}
         </div>
+      </div>
+      {/* El desvanecido dice «esto sigue»: cortado a hueso, lo de abajo no se busca. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-lienzo to-transparent" />
       </div>
 
       <BarraRapida

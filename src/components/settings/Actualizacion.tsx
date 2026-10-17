@@ -172,10 +172,15 @@ export function EstadoActualizacion({
         disabled={fase.tipo === "mirando"}
         title={texto || t("Buscar")}
         aria-label={texto || t("Buscar")}
-        className="flex size-7 items-center justify-center rounded-lg transition-colors hover:bg-realce"
+        className={`flex h-7 items-center justify-center gap-1.5 rounded-lg transition-colors hover:bg-realce ${
+          alDia ? "px-2" : "w-7"
+        }`}
       >
         {alDia ? (
-          <Check className="size-4 text-emerald-400" />
+          <>
+            <Check className="size-4 text-emerald-400" />
+            <span className="text-[11.5px] text-apagado">{t("Al día")}</span>
+          </>
         ) : (
           <RefreshCw
             className={`size-3.5 text-apagado ${fase.tipo === "mirando" ? "animate-spin" : ""}`}
