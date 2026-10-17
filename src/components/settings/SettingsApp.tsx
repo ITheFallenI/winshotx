@@ -72,6 +72,7 @@ import { Row, RowButton, Section } from "./Section";
 import { SettingsHeader, type SeccionId } from "./SettingsHeader";
 import { GuidedTour } from "./GuidedTour";
 import { BarraRapida } from "./BarraRapida";
+import { MarcaDeAgua } from "../ui/MarcaDeAgua";
 import { ShortcutField } from "./ShortcutField";
 
 /** La inyecta Vite desde package.json: escribirla a mano acababa en cuatro copias. */
@@ -421,7 +422,8 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-lienzo">
+    <div className="relative flex h-full flex-col overflow-hidden bg-lienzo">
+      <MarcaDeAgua />
       <SettingsHeader
         activa={seccion}
         onCambiar={setSeccion}
