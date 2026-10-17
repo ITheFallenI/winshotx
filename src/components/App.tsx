@@ -39,16 +39,16 @@ export function App() {
     void ventana.setTitle(
       vista === "bienvenida" ? "winshotx · bienvenida" : "winshotx · ajustes",
     );
-    // Cada pantalla pide el alto que necesita. La bienvenida es un texto largo y necesita
-    // 640; los ajustes, con la navegacion arriba y los bloques en dos columnas, caben en
-    // 510. Dejar la ventana siempre en el alto de la mas alta le pone a los ajustes un
-    // palmo de hueco debajo, y es la que se abre todos los dias.
+    // Cada pantalla pide el alto que necesita, y es ESTA linea la que manda: lo que dice
+    // `tauri.conf.json` es solo el tamanno con el que nace la ventana, y se pisa aqui en
+    // cuanto carga la aplicacion.
     //
-    // Subio de 470 a 510 el 27 de agosto de 2026, al entrar el microfono y los dos realces
-    // en «Grabar»: con cuatro bloques por seccion, 470 cortaba la ultima fila. Ninguna
-    // pantalla de ajustes lleva rueda, esa es la regla; si el contenido no cabe, se
-    // agranda la ventana o se compacta el contenido, y aqui se han hecho las dos cosas.
-    void ventana.setSize(new LogicalSize(840, vista === "bienvenida" ? 640 : 510));
+    // Subio de 470 a 510 el 27 de agosto de 2026 al entrar el microfono, y de 510 a 620 el
+    // 17 de octubre: con el anillo encendido, «Los ultimos segundos» son seis filas y la
+    // seccion se cortaba a media fila. Ninguna pantalla de ajustes lleva rueda, esa es la
+    // regla; si el contenido no cabe, se agranda la ventana o se compacta el contenido, y
+    // aqui se han hecho las dos cosas.
+    void ventana.setSize(new LogicalSize(840, vista === "bienvenida" ? 640 : 620));
   }, [vista]);
 
   if (vista === "cargando") return <div className="h-full bg-lienzo" />;
