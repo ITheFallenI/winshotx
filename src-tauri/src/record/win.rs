@@ -16,7 +16,7 @@ use crate::capture::Rect;
 use crate::error::{AppError, Result};
 
 /// windows-capture identifica monitores por HMONITOR, asi que se lo pedimos a Win32.
-fn monitor_at(x: i32, y: i32) -> Result<WcMonitor> {
+pub(crate) fn monitor_at(x: i32, y: i32) -> Result<WcMonitor> {
     use windows::Win32::Foundation::POINT;
     use windows::Win32::Graphics::Gdi::{MonitorFromPoint, MONITOR_DEFAULTTONEAREST};
 

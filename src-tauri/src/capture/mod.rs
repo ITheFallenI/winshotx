@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod bench_freeze;
+#[cfg(windows)]
+mod wgc;
 use std::sync::Arc;
 
 use image::RgbaImage;
@@ -84,15 +86,6 @@ pub struct Freeze {
     pub png: Arc<Vec<u8>>,
 }
 
-/// Captura todos los monitores de una vez y deja los BMP en disco.
-/// Congelar la imagen evita pelearse con ventanas transparentes y da lupa exacta.
-///
-/// Capturar es estrictamente secuencial: GDI (lo que usa `xcap` en Windows) no tolera
-/// bien que varios hilos capturen pantalla a la vez, y paralelizarlo fue justo lo que
-/// colgo la app la primera vez que se intento (ver la memoria del proyecto). Pero una vez
-/// que cada imagen ya esta en memoria, guardarla a disco no comparte nada entre monitores
-/// (cada uno escribe su propio archivo), asi que eso si se reparte en hilos: mientras se
-/// captura el monitor 2, el monitor 1 ya se puede estar escribiendo en paralelo.
 /// Como es un monitor: donde esta, cuanto mide y como se llama.
 fn describir(index: usize, monitor: &xcap::Monitor) -> Result<MonitorInfo> {
     Ok(MonitorInfo {
@@ -123,6 +116,36 @@ pub fn monitors() -> Result<Vec<MonitorInfo>> {
         .collect()
 }
 
+/// La foto de una pantalla, por la captura moderna de Windows: la misma de los videos.
+///
+/// Era GDI (`xcap::Monitor::capture_image`), y GDI no siempre ve lo que se compone con la
+/// tarjeta grafica: una ventana de cristal con WebView2 dentro (Adeorq) salia con trozos en
+/// negro, y en los videos no. GDI se queda de reserva para el Windows que no la tenga o por
+/// si un dia falla, y cuando se usa, el registro lo dice.
+fn fotografiar(monitor: &xcap::Monitor, info: &MonitorInfo) -> Result<RgbaImage> {
+    #[cfg(windows)]
+    if wgc::disponible() {
+        match wgc::fotografiar(info) {
+            Ok(imagen) => return Ok(imagen),
+            Err(error) => eprintln!(
+                "[captura] {}: la captura moderna ha fallado ({error}), la foto va por GDI",
+                info.label
+            ),
+        }
+    }
+    monitor
+        .capture_image()
+        .map_err(|e| AppError::Msg(e.to_string()))
+}
+
+/// Deja lista la captura de las fotos antes del primer atajo: ver `wgc::preparar`.
+pub fn preparar() {
+    #[cfg(windows)]
+    wgc::preparar();
+}
+
+/// Congela todas las pantallas. Congelar la imagen evita pelearse con ventanas
+/// transparentes y da lupa exacta.
 pub fn freeze_all() -> Result<Vec<Freeze>> {
     let cuantos = xcap::Monitor::all()
         .map_err(|e| AppError::Msg(e.to_string()))?
@@ -163,9 +186,7 @@ pub fn freeze_monitors(indices: &[usize]) -> Result<Vec<Freeze>> {
                         .get(index)
                         .ok_or_else(|| AppError::Msg("una pantalla ha desaparecido".into()))?;
                     let info = describir(index, monitor)?;
-                    let image = monitor
-                        .capture_image()
-                        .map_err(|e| AppError::Msg(e.to_string()))?;
+                    let image = fotografiar(monitor, &info)?;
                     Ok((index, info, image))
                 })
             })

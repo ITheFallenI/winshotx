@@ -211,6 +211,9 @@ pub fn run() {
             // en la bandeja), asi que crear las ventanas overlay ahora, ocultas, no lo
             // nota nadie: la primera captura del dia encuentra el pool ya listo.
             windows_mgr::precrear_overlays(&handle);
+            // Y lo mismo con la tarjeta grafica de las fotos: crear su dispositivo cuesta
+            // unos 100 ms, y sin esto los pagaria el primer atajo del dia.
+            std::thread::spawn(capture::preparar);
 
             // La primera vez se abre sola con la bienvenida: recien instalada, la app
             // vive en la bandeja y sin esto no habria nada que mirar. Y al actualizar
