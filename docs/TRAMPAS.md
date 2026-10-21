@@ -1338,3 +1338,45 @@ mascaras apiladas, tambien) y es lo que se escala y se pega. Ojo: `LoadCursorW(I
 un proceso sin ventana devuelve la version **monocroma**, y `GetCursorInfo` devuelve un cursor
 nulo mientras se teclea, asi que las pruebas cargan los cursores por su identificador fijo y
 toleran que no haya ninguno a la vista.
+
+
+## 47. `grep "^error"` sobre la salida de cargo no encuentra nada, y parece que compila
+
+Cargo escribe los errores con color, asi que la linea no empieza por `error` sino por el codigo
+de escape que pinta el rojo. Un `cargo check 2>&1 | grep -E "^(error|warning)"` sale vacio con
+dos errores de compilacion delante, y eso se lee como «compila limpio». Paso el 21 de octubre de
+2026: se dieron por buenos dos ficheros que no compilaban, y se descubrio al correr la prueba.
+
+Lo que si funciona: `cargo check --message-format=short 2>&1 | grep -ciE "error"`, que ademas
+imprime `fichero:linea:columna` y cabe en una linea. O mirar el final de la salida entera, que
+termina con `error: could not compile` cuando ha fallado.
+
+## 48. Un banco que compara dos vias no sabe medir quien llega tarde
+
+`medir_el_negro` fotografia la misma pantalla por GDI y por la captura moderna, una detras de
+otra, y cuenta los pixeles negros de una donde la otra ve contenido. Para los **agujeros** (lo
+que GDI pierde de lo que compone la tarjeta grafica) vale, y es como se descubrio el fallo de
+Adeorq. Para el **retraso** no vale, y lo dice el propio banco: la via que mas espera por traer
+lo mas nuevo (`Momento::ElMasFresco`) salia la peor de las tres, porque cuanto mas tarda una
+foto, mas cambia la pantalla desde la otra, y ese hueco se le apunta como fallo suyo.
+
+Medirlo de verdad no lleva comparacion: `medir_el_retraso_de_la_foto` pinta una ventana de un
+color, espera a que la ventana se haya repintado (`UpdateWindow`), fotografia, y mira si la foto
+trae el color nuevo o el de antes. Las tres formas aciertan 20 de 20, asi que no habia retraso
+que arreglar: montar la captura ya cuesta 34 ms y para entonces el compositor lleva rato
+habiendo pintado.
+
+**La leccion, mas alla de esto:** cuando una medida sale al reves de lo que dice la fisica (el
+que mas espera por lo nuevo trae lo mas viejo), el que esta mal es el aparato de medir.
+
+## 49. La barra de la grabacion cabe dentro de lo que se graba
+
+`sitio_de_la_barra` la pone debajo de la region; si la region llega al borde de abajo, encima; y
+si tampoco cabe encima (una region que empieza arriba del todo, o sea la pantalla entera), se
+clava en el margen de arriba, que es **dentro de la region**. Entonces sale en el video. Lo
+encontro `Arsene-86` en la issue #3, repitiendo el area anterior con la tecla `R`, que es como
+se graba un area sin volver a mirar donde cae.
+
+No se arregla moviendola, porque no hay sitio libre: se le dice a Windows que no la grabe
+(`window_style::fuera_de_la_captura`, el mismo `WDA_EXCLUDEFROMCAPTURE` del menu de la bandeja).
+Quien esta delante la ve y la pulsa igual, y en el video sale lo que hay detras.
