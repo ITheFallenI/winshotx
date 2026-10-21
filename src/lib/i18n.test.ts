@@ -10,6 +10,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { aplicarIdioma, idiomaActivo, t } from "./i18n";
 import { EN } from "./textos-en";
+import { ZH } from "./textos-zh";
 
 beforeEach(() => aplicarIdioma("es"));
 
@@ -113,7 +114,7 @@ function codigoDeLaApp(): string {
   }) as Record<string, string>;
   return [
     ...Object.entries(interfaz)
-      .filter(([ruta]) => !/\.test\.tsx?$/.test(ruta) && !ruta.includes("textos-en"))
+      .filter(([ruta]) => !/\.test\.tsx?$/.test(ruta) && !/textos-(en|zh)/.test(ruta))
       .map(([, texto]) => texto),
     ...Object.values(backend),
   ].join("\n");
@@ -144,5 +145,50 @@ describe("la salud del catalogo ingles", () => {
       ([es, en]) => marcadores(es).join() !== marcadores(en).join(),
     );
     expect(rotas).toEqual([]);
+  });
+});
+
+/**
+ * Lo mismo para el chino, que hasta hoy no lo miraba nadie.
+ *
+ * El 21 de octubre de 2026 un colaborador (`wang13zhe`) abrio un pull request contando a
+ * mano que al catalogo chino le faltaban 17 frases. Tenia razon, y ademas arrastraba 5
+ * claves huerfanas de frases que ya se habian reescrito en espannol. Nada de eso rompia
+ * nada: lo que falta cae a espannol, asi que la aplicacion seguia funcionando y las pruebas
+ * seguian verdes mientras un idioma entero se quedaba atras en silencio.
+ *
+ * Que esto lo tuviera que contar una persona de fuera, a mano, es el fallo que arregla este
+ * bloque.
+ */
+describe("la salud del catalogo chino", () => {
+  it("no tiene claves que ya no use nadie", () => {
+    const codigo = codigoDeLaApp();
+    const huerfanas = Object.keys(ZH).filter((clave) => !codigo.includes(clave));
+    expect(huerfanas).toEqual([]);
+  });
+
+  it("cada traduccion conserva los marcadores de su original", () => {
+    // Un {nombre} perdido al traducir sale como un hueco en la pantalla de quien lee en
+    // chino, y aqui no hay nadie que lo lea antes que el.
+    const marcadores = (frase: string) => (frase.match(/\{[a-z]+\}/g) ?? []).sort();
+    const rotas = Object.entries(ZH).filter(
+      ([es, zh]) => marcadores(es).join() !== marcadores(zh).join(),
+    );
+    expect(rotas).toEqual([]);
+  });
+
+  it("traduce todo lo que traduce el ingles", () => {
+    // Las dos listas se mantienen a la par: si se annade una frase y solo se traduce a un
+    // idioma, esto lo dice en el momento, en vez de que lo cuente alguien meses despues.
+    //
+    // Si algun dia se decide que el chino va por libre y puede ir por detras, esta prueba
+    // es la que se quita, y las dos de arriba se quedan.
+    const faltan = Object.keys(EN).filter((clave) => !(clave in ZH));
+    expect(faltan).toEqual([]);
+  });
+
+  it("y no traduce nada que el ingles no tenga", () => {
+    const sobran = Object.keys(ZH).filter((clave) => !(clave in EN));
+    expect(sobran).toEqual([]);
   });
 });
