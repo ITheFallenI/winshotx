@@ -243,76 +243,290 @@ mod tests {
         let x1 = ((vx + vw - pantalla.x).max(0) as u32).min(pantalla.width);
         let y1 = ((vy + vh - pantalla.y).max(0) as u32).min(pantalla.height);
         let area = ((x1 - x0) as u64 * (y1 - y0) as u64) as f64 / 100.0;
-        // Un hueco es un pixel casi negro en una foto donde la otra, hecha justo al lado, ve
-        // contenido. El negro de GDI no es negro exacto (sale un fondo muy oscuro), asi que
-        // contar solo el 0,0,0 no lo ve: medido, las dos vias daban el mismo 0,22 %.
+        // DOS FALLOS DISTINTOS, QUE ANTES SE CONTABAN COMO UNO.
+        //
+        // Las dos vias fotografian lo mismo con milisegundos de diferencia, asi que un
+        // pixel negro en una y con contenido en la otra puede ser una de dos cosas, y no
+        // se arreglan igual:
+        //
+        // - **Un agujero**: esta via VEIA ese trozo en su foto anterior y ahora lo ve
+        //   negro. Ha perdido contenido que tenia. Es el fallo de GDI con lo que compone
+        //   la tarjeta grafica.
+        // - **Un desfase**: ese trozo tambien estaba negro en su foto anterior, y la otra
+        //   via ya ve algo. No ha perdido nada: es contenido NUEVO que esta via todavia no
+        //   tiene, porque le dieron el fotograma de justo antes.
+        //
+        // Mezclados no se puede arreglar ninguno: el agujero se arregla cambiando de via, y
+        // el desfase esperando al compositor. Medido el 21 de octubre de 2026, lo que
+        // quedaba de la captura moderna era desfase, no agujeros.
         let casi_negro = |p: [u8; 4]| p[0] <= 16 && p[1] <= 16 && p[2] <= 16;
         let con_algo = |p: [u8; 4]| p[0] >= 48 || p[1] >= 48 || p[2] >= 48;
-        let huecos = |esta: &image::RgbaImage, otra: &image::RgbaImage| -> f64 {
-            let mut cuantos = 0u64;
+        let fallos = |esta: &image::RgbaImage,
+                      otra: &image::RgbaImage,
+                      antes: Option<&image::RgbaImage>|
+         -> (f64, f64) {
+            let (mut agujero, mut desfase) = (0u64, 0u64);
             for y in y0..y1 {
                 for x in x0..x1 {
-                    if casi_negro(esta.get_pixel(x, y).0) && con_algo(otra.get_pixel(x, y).0) {
-                        cuantos += 1;
+                    if !(casi_negro(esta.get_pixel(x, y).0) && con_algo(otra.get_pixel(x, y).0)) {
+                        continue;
+                    }
+                    match antes {
+                        // Lo tenia y lo ha perdido.
+                        Some(a) if con_algo(a.get_pixel(x, y).0) => agujero += 1,
+                        // Ahi no habia nada: es contenido nuevo que aun no le ha llegado.
+                        Some(_) => desfase += 1,
+                        // En la primera vuelta no hay con que comparar: cuenta como agujero,
+                        // que es lo prudente.
+                        None => agujero += 1,
                     }
                 }
             }
-            cuantos as f64 / area
-        };
-        let iguales = |a: &image::RgbaImage, b: &image::RgbaImage| -> f64 {
-            let mut cuantos = 0u64;
-            for y in y0..y1 {
-                for x in x0..x1 {
-                    let (p, q) = (a.get_pixel(x, y).0, b.get_pixel(x, y).0);
-                    if (0..3).all(|c| p[c].abs_diff(q[c]) <= 2) {
-                        cuantos += 1;
-                    }
-                }
-            }
-            cuantos as f64 / area
+            (agujero as f64 / area, desfase as f64 / area)
         };
 
         let vueltas = 80;
-        let (mut gdi, mut moderna) = (Vec::new(), Vec::new());
-        let (mut gdi_consigo, mut moderna_consigo) = (Vec::new(), Vec::new());
-        let mut anteriores: Option<(image::RgbaImage, image::RgbaImage)> = None;
-        for vuelta in 0..vueltas {
-            let g = por_gdi(indice);
-            let m = crate::capture::wgc::fotografiar(&pantalla).unwrap();
-            let (hg, hm) = (huecos(&g, &m), huecos(&m, &g));
-            gdi.push(hg);
-            moderna.push(hm);
-            if let Some((ga, ma)) = &anteriores {
-                let (cg, cm) = (iguales(ga, &g), iguales(ma, &m));
-                gdi_consigo.push(cg);
-                moderna_consigo.push(cm);
-                if hg > 1.0 || hm > 1.0 {
-                    println!(
-                        "[negro]   vuelta {vuelta}: huecos GDI {hg:.1}%, moderna {hm:.1}%; igual que su anterior: GDI {cg:.1}%, moderna {cm:.1}%"
-                    );
-                }
-            }
-            anteriores = Some((g, m));
-            std::thread::sleep(std::time::Duration::from_millis(40));
-        }
-        let resumen = |nombre: &str, que: &str, v: &Vec<f64>| {
-            let peor = v.iter().cloned().fold(0.0, f64::max);
-            let menos = v.iter().cloned().fold(100.0, f64::min);
+        // Una foto con fallo: mas del 1 % de la ventana.
+        let pasa = |v: &[f64]| v.iter().filter(|h| **h > 1.0).count();
+        let resumen = |nombre: &str, agujeros: &[f64], desfases: &[f64]| {
+            let peor = |v: &[f64]| v.iter().cloned().fold(0.0, f64::max);
             println!(
-                "[negro] {nombre}, {que}: minimo {menos:.1}%, mediana {:.1}%, maximo {peor:.1}%",
-                mediana(v.clone())
+                "[negro] {nombre}: agujeros {} de {vueltas} (peor {:.1} %), desfases {} de {vueltas} (peor {:.1} %)",
+                pasa(agujeros),
+                peor(agujeros),
+                pasa(desfases),
+                peor(desfases)
             );
         };
-        resumen("GDI", "huecos en la ventana", &gdi);
-        resumen("moderna", "huecos en la ventana", &moderna);
-        resumen("GDI", "igual que su foto anterior", &gdi_consigo);
-        resumen("moderna", "igual que su foto anterior", &moderna_consigo);
-        // Una foto con hueco: mas del 1 % de la ventana negra donde la otra via ve algo.
-        let huecos_gdi = gdi.iter().filter(|h| **h > 1.0).count();
-        let huecos_moderna = moderna.iter().filter(|h| **h > 1.0).count();
-        println!(
-            "[negro] fotos con huecos (mas del 1 % de la ventana): GDI {huecos_gdi} de {vueltas}, moderna {huecos_moderna} de {vueltas}"
+
+        // Cada momento se mide contra GDI en su propia tanda, no los tres a la vez: dos
+        // fotos seguidas se parecen mas que la primera y la cuarta, y comparar tandas de
+        // tamannos distintos inventaria diferencias que no son de la via.
+        let momentos = [
+            ("el primero", crate::capture::wgc::Momento::ElPrimero),
+            ("tras el compositor", crate::capture::wgc::Momento::TrasElCompositor),
+            ("el mas fresco", crate::capture::wgc::Momento::ElMasFresco),
+        ];
+        let mut veredicto = Vec::new();
+        for (nombre, momento) in momentos {
+            let (mut ag_gdi, mut de_gdi) = (Vec::new(), Vec::new());
+            let (mut ag_mod, mut de_mod) = (Vec::new(), Vec::new());
+            let mut tiempos = Vec::new();
+            let mut anteriores: Option<(image::RgbaImage, image::RgbaImage)> = None;
+            for _ in 0..vueltas {
+                let g = por_gdi(indice);
+                let t0 = Instant::now();
+                let m = crate::capture::wgc::fotografiar_en(&pantalla, momento).unwrap();
+                tiempos.push(ms(t0));
+                let (ga, ma) = match &anteriores {
+                    Some((ga, ma)) => (Some(ga), Some(ma)),
+                    None => (None, None),
+                };
+                let (a, d) = fallos(&g, &m, ga);
+                ag_gdi.push(a);
+                de_gdi.push(d);
+                let (a, d) = fallos(&m, &g, ma);
+                ag_mod.push(a);
+                de_mod.push(d);
+                anteriores = Some((g, m));
+                std::thread::sleep(std::time::Duration::from_millis(40));
+            }
+            println!("[negro] --- la moderna pidiendo «{nombre}»");
+            resumen("GDI", &ag_gdi, &de_gdi);
+            resumen("moderna", &ag_mod, &de_mod);
+            println!("[negro] moderna, lo que tarda la foto: mediana {:.0} ms", mediana(tiempos));
+            veredicto.push((nombre, pasa(&ag_mod), pasa(&de_mod)));
+        }
+
+        for (nombre, agujeros, desfases) in &veredicto {
+            println!("[negro] «{nombre}»: {agujeros} agujeros y {desfases} desfases de {vueltas}");
+        }
+        // El que usa la app (`fotografiar`) es «el primero»: ese es el que tiene que salir
+        // sin agujeros, y es lo que esta prueba defiende.
+        //
+        // Los DESFASES no se miran aqui a proposito: este banco no sabe medirlos, porque
+        // compara dos fotos hechas en instantes distintos y le apunta a la mas lenta el
+        // hueco entre las dos. Quien los mide es `medir_el_retraso_de_la_foto`, que pinta
+        // un color conocido y no compara con nadie. Se siguen contando e imprimiendo
+        // porque un numero que sube de golpe sigue siendo una pista.
+        let (_, agujeros, _) = veredicto[0];
+        assert_eq!(agujeros, 0, "la captura moderna ha dejado agujeros negros");
+    }
+
+    /// Una ventana de un color, en la esquina de la pantalla principal, para medir si una
+    /// foto trae lo ULTIMO que se pinto.
+    ///
+    /// El otro banco compara las dos vias entre si, y para el retraso eso no vale: las dos
+    /// fotos se hacen en instantes distintos, asi que a la que mas tarda se le apunta un
+    /// desfase que es el hueco entre ambas y no un defecto suyo. Medido el 21 de octubre de
+    /// 2026: «el mas fresco», que es justo el que mas espera por traer lo mas nuevo, salia
+    /// el peor de los tres. Aqui no se compara con nada: se pinta un color, se fotografia, y
+    /// se mira si la foto trae el color nuevo o el de antes.
+    #[cfg(windows)]
+    mod retraso {
+        use windows::core::PCWSTR;
+        use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, WPARAM};
+        use windows::Win32::Graphics::Gdi::{CreateSolidBrush, InvalidateRect, UpdateWindow};
+        use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, DefWindowProcW, DestroyWindow, RegisterClassW, SetClassLongPtrW,
+            ShowWindow, GCLP_HBRBACKGROUND, SW_SHOWNOACTIVATE, WNDCLASSW, WS_EX_NOACTIVATE,
+            WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+        };
+
+        const CLASE: &[u16] = &[
+            119, 115, 120, 45, 99, 111, 108, 111, 114, 0, // "wsx-color"
+        ];
+
+        unsafe extern "system" fn procedimiento(
+            hwnd: HWND,
+            msg: u32,
+            w: WPARAM,
+            l: LPARAM,
+        ) -> LRESULT {
+            unsafe { DefWindowProcW(hwnd, msg, w, l) }
+        }
+
+        /// Abre la ventana, ya pintada del primer color.
+        pub fn abrir(x: i32, y: i32, lado: i32, color: u32) -> HWND {
+            let instancia = unsafe { GetModuleHandleW(None) }.expect("sin instancia");
+            let clase = WNDCLASSW {
+                hInstance: instancia.into(),
+                lpszClassName: PCWSTR(CLASE.as_ptr()),
+                lpfnWndProc: Some(procedimiento),
+                hbrBackground: unsafe { CreateSolidBrush(COLORREF(color)) },
+                ..Default::default()
+            };
+            let _ = unsafe { RegisterClassW(&clase) };
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+                    PCWSTR(CLASE.as_ptr()),
+                    PCWSTR::null(),
+                    WS_POPUP,
+                    x,
+                    y,
+                    lado,
+                    lado,
+                    None,
+                    None,
+                    Some(instancia.into()),
+                    None,
+                )
+            }
+            .expect("no se ha podido abrir la ventana de color");
+            let _ = unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+            hwnd
+        }
+
+        /// La pinta de otro color y NO vuelve hasta que la ventana se ha repintado:
+        /// `UpdateWindow` manda el `WM_PAINT` y espera a que se atienda. Lo que queda
+        /// despues de esto es solo el compositor, que es justo lo que se esta midiendo.
+        pub fn pintar(hwnd: HWND, color: u32) {
+            let pincel = unsafe { CreateSolidBrush(COLORREF(color)) };
+            unsafe {
+                SetClassLongPtrW(hwnd, GCLP_HBRBACKGROUND, pincel.0 as isize);
+                let _ = InvalidateRect(Some(hwnd), None, true);
+                let _ = UpdateWindow(hwnd);
+            }
+        }
+
+        pub fn cerrar(hwnd: HWND) {
+            unsafe {
+                let _ = DestroyWindow(hwnd);
+            }
+        }
+    }
+
+    /// Si la foto trae lo ULTIMO que se pinto, por cada forma de pedirla.
+    ///
+    ///     cargo test --release --lib medir_el_retraso -- --ignored --nocapture
+    #[test]
+    #[ignore = "abre una ventana de color en la pantalla: se corre a mano"]
+    #[cfg(windows)]
+    fn medir_el_retraso_de_la_foto() {
+        use crate::capture::wgc::Momento;
+
+        // COLORREF va en BGR, al reves que el pixel de la foto.
+        const MAGENTA: u32 = 0x00FF_00FF;
+        const CIAN: u32 = 0x00FF_FF00;
+        let rgb_de = |color: u32| {
+            if color == CIAN {
+                (0u8, 255u8, 255u8)
+            } else {
+                (255u8, 0u8, 255u8)
+            }
+        };
+        let es = |p: [u8; 4], c: (u8, u8, u8)| {
+            p[0].abs_diff(c.0) < 40 && p[1].abs_diff(c.1) < 40 && p[2].abs_diff(c.2) < 40
+        };
+
+        let (todas, primera, _) = pantallas();
+        let pantalla = todas[primera].clone();
+        let lado = 200;
+        let (x, y) = (pantalla.x + 40, pantalla.y + 40);
+        let hwnd = retraso::abrir(x, y, lado, MAGENTA);
+        std::thread::sleep(std::time::Duration::from_millis(400));
+
+        // El centro de la ventana, en coordenadas de la foto de esa pantalla.
+        let cx = (x - pantalla.x + lado / 2) as u32;
+        let cy = (y - pantalla.y + lado / 2) as u32;
+
+        let vueltas = 20;
+        let mut tabla = Vec::new();
+        for (nombre, momento) in [
+            ("el primero", Momento::ElPrimero),
+            ("tras el compositor", Momento::TrasElCompositor),
+            ("el mas fresco", Momento::ElMasFresco),
+        ] {
+            let mut tarde = 0;
+            let mut ninguno = 0;
+            let mut tiempos = Vec::new();
+            for vuelta in 0..vueltas {
+                // Se alterna el color en cada vuelta para que siempre haya un cambio de
+                // verdad: pintar dos veces del mismo color no cambia nada, y la foto
+                // acertaria sin merito.
+                let (viejo, nuevo) = if vuelta % 2 == 0 {
+                    (MAGENTA, CIAN)
+                } else {
+                    (CIAN, MAGENTA)
+                };
+                retraso::pintar(hwnd, viejo);
+                std::thread::sleep(std::time::Duration::from_millis(120));
+                retraso::pintar(hwnd, nuevo);
+                let t0 = Instant::now();
+                let foto = crate::capture::wgc::fotografiar_en(&pantalla, momento).unwrap();
+                tiempos.push(ms(t0));
+                let p = foto.get_pixel(cx, cy).0;
+                if es(p, rgb_de(nuevo)) {
+                    // La foto trae lo ultimo que se pinto: bien.
+                } else if es(p, rgb_de(viejo)) {
+                    tarde += 1;
+                } else {
+                    // Ni uno ni otro: algo tapa la ventana, y entonces no se mide nada.
+                    ninguno += 1;
+                }
+            }
+            println!(
+                "[retraso] «{nombre}»: trae el color de antes {tarde} de {vueltas}, sin color conocido {ninguno}, mediana {:.0} ms",
+                mediana(tiempos)
+            );
+            tabla.push((nombre, tarde, ninguno));
+        }
+
+        retraso::cerrar(hwnd);
+
+        for (nombre, _, ninguno) in &tabla {
+            assert_eq!(
+                *ninguno, 0,
+                "«{nombre}»: la ventana de color no sale en la foto, algo la tapa y no se mide nada"
+            );
+        }
+        // El que usa la app (`fotografiar`) es «tras el compositor»: ese es el que no puede
+        // traer el color de antes.
+        assert_eq!(
+            tabla[1].1, 0,
+            "la foto de la app trae el color de antes: llega tarde"
         );
-        assert_eq!(huecos_moderna, 0, "la captura moderna tambien ha dejado huecos negros");
     }
 }

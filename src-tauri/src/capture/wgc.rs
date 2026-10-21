@@ -26,6 +26,7 @@ use windows::Win32::Graphics::Direct3D11::{
     ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D, D3D11_MAPPED_SUBRESOURCE, D3D11_MAP_READ,
     D3D11_TEXTURE2D_DESC,
 };
+use windows::Win32::Graphics::Dwm::DwmFlush;
 use windows::Win32::Graphics::Gdi::HMONITOR;
 use windows::Win32::System::WinRT::Direct3D11::IDirect3DDxgiInterfaceAccess;
 use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
@@ -39,6 +40,40 @@ use crate::error::{AppError, Result};
 /// cuanto empieza la captura, aunque la pantalla este quieta, asi que esto solo se agota si
 /// algo va mal de verdad; y entonces la foto sale por GDI, tarde pero sale.
 const ESPERA: Duration = Duration::from_millis(500);
+
+/// Lo que se espera a un fotograma mas fresco que el primero, en `Momento::ElMasFresco`.
+/// Son 20 ms porque una pantalla de 60 Hz compone uno cada 16,7, y a 120 Hz cada 8,3: en
+/// las dos cabe uno. Si no llega, vale el primero; esperar mas seria pagar por nada en la
+/// pantalla quieta, que es el caso normal al hacer una foto.
+const UN_FOTOGRAMA: Duration = Duration::from_millis(20);
+
+/// Cuando se da por buena la foto.
+///
+/// **Existe para poder demostrar que el de siempre vale, no porque haga falta cambiarlo.**
+/// Windows entrega un fotograma nada mas empezar la captura, y ese fotograma es lo que el
+/// compositor ya tenia compuesto: sobre el papel, si la pantalla acaba de cambiar podria
+/// ser el de justo antes. Medido el 21 de octubre de 2026 con `medir_el_retraso_de_la_foto`,
+/// que pinta un color y mira si la foto lo trae: **las tres formas aciertan 20 de 20**, y
+/// `ElPrimero` es la que menos tarda (34 ms, contra 39 y 65).
+///
+/// La razon es que montar la captura ya cuesta esos 34 ms, y para entonces el compositor
+/// lleva rato habiendo pintado. Esperarle encima es pagar dos veces por lo mismo.
+///
+/// Lo que si parecia un retraso (1 foto de cada 80 en `medir_el_negro`) era del banco y no
+/// de la app: comparaba la foto de una via con la de la otra, hechas en instantes
+/// distintos, asi que a la via que mas tardaba le apuntaba como desfase el hueco entre las
+/// dos. Por eso `el mas fresco`, que es la que mas espera por traer lo mas nuevo, salia la
+/// peor de las tres.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Momento {
+    /// El primero que entregue Windows, sin esperar a nada.
+    ElPrimero,
+    /// Se espera a que el compositor termine lo que tiene entre manos (`DwmFlush`) y
+    /// entonces se empieza a capturar, asi que el primer fotograma ya lleva lo ultimo.
+    TrasElCompositor,
+    /// Se coge el primero y, si llega otro en lo que dura un fotograma de pantalla, ese.
+    ElMasFresco,
+}
 
 /// Si este Windows puede hacer la foto como hace falta: sin el marco amarillo que pinta la
 /// captura alrededor de la pantalla y sin el raton (la foto de GDI tampoco lo lleva). En
@@ -120,14 +155,26 @@ fn bgra_a_rgba(crudo: &[u8], ancho: u32, alto: u32, paso: usize) -> Vec<u8> {
 /// demas (el overlay, el recorte, juntar pantallas). Si sale de otro tamanno es un error y
 /// no una foto: quien llama va por GDI antes que descuadrar la seleccion.
 pub fn fotografiar(monitor: &MonitorInfo) -> Result<RgbaImage> {
-    let resultado = fotografiar_con(&tarjeta()?, monitor);
+    // El primero, que es el mas rapido y acierta igual: ver `Momento`.
+    fotografiar_en(monitor, Momento::ElPrimero)
+}
+
+/// Lo mismo, diciendo con que fotograma se queda. Existe para poder medir los tres caminos
+/// uno contra otro en `bench_freeze`, que es de donde salio que el de siempre deja pasar
+/// una foto vieja de cada ochenta.
+pub(crate) fn fotografiar_en(monitor: &MonitorInfo, momento: Momento) -> Result<RgbaImage> {
+    let resultado = fotografiar_con(&tarjeta()?, monitor, momento);
     if resultado.is_err() {
         *TARJETA.lock() = None;
     }
     resultado
 }
 
-fn fotografiar_con(tarjeta: &Tarjeta, monitor: &MonitorInfo) -> Result<RgbaImage> {
+fn fotografiar_con(
+    tarjeta: &Tarjeta,
+    monitor: &MonitorInfo,
+    momento: Momento,
+) -> Result<RgbaImage> {
     let de_windows = |e: windows::core::Error| AppError::Msg(e.to_string());
     let pantalla = crate::record::win::monitor_at(
         monitor.x + (monitor.width / 2) as i32,
@@ -177,10 +224,25 @@ fn fotografiar_con(tarjeta: &Tarjeta, monitor: &MonitorInfo) -> Result<RgbaImage
         sesion
             .SetIsCursorCaptureEnabled(false)
             .map_err(de_windows)?;
+        if momento == Momento::TrasElCompositor {
+            // Espera a que el compositor termine el fotograma que esta componiendo. Sin
+            // esto la captura empieza a media composicion, y lo primero que entrega puede
+            // ser el fotograma de antes del ultimo cambio.
+            let _ = unsafe { DwmFlush() };
+        }
         sesion.StartCapture().map_err(de_windows)?;
-        let fotograma = llegada
+        let mut fotograma = llegada
             .recv_timeout(ESPERA)
             .map_err(|_| AppError::Msg("no ha llegado ningún fotograma".into()))?;
+        if momento == Momento::ElMasFresco {
+            // Si en lo que dura un fotograma de pantalla llega otro, ese es mas nuevo. Y si
+            // no llega, que es lo normal con la pantalla quieta, vale el primero: esperar
+            // mas seria perder la foto por nada.
+            if let Ok(siguiente) = llegada.recv_timeout(UN_FOTOGRAMA) {
+                let _ = fotograma.Close();
+                fotograma = siguiente;
+            }
+        }
         // Se copia ANTES de cerrar la piscina, que es la duenna de la textura.
         let foto = copiar(tarjeta, &fotograma);
         let _ = fotograma.Close();
