@@ -78,8 +78,6 @@ export const ZH: Record<string, string> = {
   "pantalla {n} · {ancho} × {alto} · {ritmo}/s": "屏幕 {n} · {ancho} × {alto} · {ritmo}/秒",
   "{ancho} × {alto} · hasta {tamaño} en disco": "{ancho} × {alto} · 最大占用 {tamaño} 磁盘",
   Fluidez: "流畅度",
-  "esta combinación midió el 86% de un núcleo": "此组合实测占用单核 86%",
-  "esta combinación midió el 57% de un núcleo": "此组合实测占用单核 57%",
   "fotogramas por segundo": "帧每秒",
   Nativa: "原生",
   "abre el editor con lo último, sin dejar de grabar":
@@ -170,7 +168,8 @@ export const ZH: Record<string, string> = {
   "Cuántas veces por segundo se mira la pantalla. 30 vale para casi todo; 60 es para movimiento rápido y cuesta el doble de disco y de máquina. El editor puede bajarlo después, pero lo que no se grabó no se inventa.": "每秒采集屏幕的次数。30 帧几乎够用；60 帧适合快速运动，但磁盘和性能开销翻倍。编辑器可以之后降帧，但没录到的内容无法凭空生成。",
   "Graba lo que suena por los altavoces, dentro del mismo vídeo: la voz de una llamada, el audio de un vídeo, la alerta de un programa. No graba tu micrófono, eso es la fila de abajo.": "把扬声器发出的声音录进同一个视频：通话语音、视频声音、程序提示音。不会录制麦克风，那是下面一行的选项。",
   "Tu voz, mezclada con el sonido del sistema en la misma pista. Es lo que hace falta para explicar algo mientras lo enseñas, y solo se puede decidir antes de grabar.": "你的声音，与系统声音混合在同一轨道。适合一边演示一边讲解，只能在录制前决定。",
-  "winshotx graba la pantalla todo el rato y va tirando lo viejo, así que lo que acaba de pasar sigue estando ahí aunque no le hubieras dado a grabar. Y cuesta: medido en un equipo con tres pantallas, a 60 fotogramas y resolución nativa se lleva el 86% de un núcleo, y a 30 con 1080 el 57%. Apagado, winshotx entera gasta el 2,9%.": "winshotx 持续录制屏幕并丢弃旧内容，所以即使你没按录制，刚刚发生的画面仍在。代价是：在三屏、60 帧、原生分辨率下实测占用单核 86%；30 帧 1080p 占用 57%。关闭后，整个 winshotx 只占用 2.9%。",
+  "winshotx graba la pantalla todo el rato y va tirando lo viejo, así que lo que acaba de pasar sigue estando ahí aunque no le hubieras dado a grabar. Y cuesta: medido en un equipo con tres pantallas, a 60 fotogramas y resolución nativa se lleva un 22% de un núcleo con el escritorio quieto, y hasta el 60% con la pantalla en movimiento. Apagado, winshotx entera gasta el 2,9%.":
+    "winshotx 持续录制屏幕并丢弃旧内容，所以即使你没按录制，刚刚发生的画面仍在。代价是：在三屏、60 帧、原生分辨率下实测，桌面静止时占用单核 22%，屏幕运动时最高占用 60%。关闭后，整个 winshotx 只占用 2.9%。",
   "Cuánto tiempo hacia atrás se puede rescatar. Más segundos es más memoria y más disco dando vueltas, y hasta que no pase ese tiempo desde que lo encendiste, lo que guardes durará menos de lo que pone aquí.": "可以回溯多久。秒数越多，内存和磁盘占用越高；开启后未满该时长时，保存的内容会比这里显示的短。",
   "El anillo vigila UNA pantalla y no puede cambiar a mitad, porque mudarse se llevaría por delante lo grabado. Al elegir una, su número aparece un par de segundos en esa misma pantalla para que sepas cuál es.": "回放环只监视一个屏幕，中途不能切换，因为换屏会丢失已录内容。选择某个屏幕后，其编号会在该屏幕显示几秒，方便确认。",
   "A qué tamaño se guarda lo que va entrando. Bajarlo de la resolución nativa ocupa mucho menos y se nota poco en pantalla, y aquí abajo tienes lo que puede llegar a ocupar en disco con lo que hayas elegido.": "录制内容的保存尺寸。低于原生分辨率可大幅节省空间，屏幕上几乎看不出差别；下方会显示当前选项可能占用的磁盘空间。",
@@ -382,6 +381,8 @@ export const ZH: Record<string, string> = {
   // 编辑器缩略图条
   "Fotograma {actual} de {total}": "第 {actual} 帧，共 {total} 帧",
   "Te quedas con {desde} a {hasta}": "保留 {desde} 到 {hasta}",
+  "Inicio del trozo (tecla I)": "片段起点（I 键）",
+  "Final del trozo (tecla O)": "片段终点（O 键）",
   "{n} fotograma": "{n} 帧",
   "{n} fotogramas": "{n} 帧",
   "Falta el identificador de sesión": "缺少会话 ID",
@@ -426,7 +427,6 @@ export const ZH: Record<string, string> = {
 
   // 裁剪图片
   Recortar: "裁剪",
-  "Recortar la imagen (C)": "裁剪图片 (C)",
   "Quitar el recorte": "取消裁剪",
   "Lo que se va a exportar": "将要导出的内容",
 
@@ -460,6 +460,20 @@ export const ZH: Record<string, string> = {
   Mosaico: "马赛克",
   "Escribe y pulsa en la imagen": "输入文字后点击图片",
   "Deshacer la última (Ctrl+Z)": "撤销上一步 (Ctrl+Z)",
+  "Últimas capturas": "最新截图",
+  "Copiar {nombre}": "复制{nombre}",
+  "Copiada: {nombre}": "已复制：{nombre}",
+  "No he podido copiarla": "无法复制",
+  "hace un momento": "刚刚",
+  "hace {minutos} min": "{minutos} 分钟前",
+  "hace {horas} h": "{horas} 小时前",
+  "hace {dias} días": "{dias} 天前",
+  "W: grabar solo esta ventana": "W：只录这一个窗口",
+  "Copiar el texto de la imagen": "复制图片中的文字",
+  "Texto copiado: {palabras} palabras": "文字已复制：{palabras} 个字",
+  "Tapar datos personales": "涂黑隐私信息",
+  "No he encontrado datos personales en esta imagen": "这张图里没有找到隐私信息",
+  "Tapado: {detalle}": "已涂黑：{detalle}",
   "Quitar todas": "全部清除",
 
   // 「录屏」区块
@@ -490,5 +504,4 @@ export const ZH: Record<string, string> = {
   "La misma captura, pero al soltar el ratón se abre el editor en vez de la barra de siempre. Para la captura que hay que trabajar: señalar algo con una flecha, tapar un dato o recortar antes de mandarla.": "同样的截图，但松开鼠标后直接打开编辑器，而不是平时那条工具栏。适合需要动手处理的截图：用箭头指出重点、遮住敏感信息，或者发出去之前先裁一下。",
   "esta combinación midió el 17% de un núcleo con el escritorio quieto": "此组合在桌面静止时测得约占一个核心的 17%",
   "esta combinación midió el 22% de un núcleo con el escritorio quieto, y hasta el 60% con la pantalla en movimiento": "此组合在桌面静止时测得约占一个核心的 22%，画面移动时最高到 60%",
-  "winshotx graba la pantalla todo el rato y va tirando lo viejo, así que lo que acaba de pasar sigue estando ahí aunque no hayas pulsado grabar. Y cuesta: memoria mientras está encendido, y disco cuando guardas.": "winshotx 会一直录制屏幕并不断丢弃旧画面，所以即使你没按下录制，刚刚发生的事情依然还在。代价是：开着时占内存，保存时占硬盘。",
 };
