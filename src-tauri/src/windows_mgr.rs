@@ -813,6 +813,14 @@ fn aparcadero(app: &AppHandle) -> PhysicalPosition<i32> {
 /// Las ventanas se crean en el hilo principal: hacerlo desde el hilo de un comando
 /// bloquea a la espera del bucle de eventos y la grabacion se queda colgada.
 ///
+/// **No sale en el video, aunque este encima de lo que se graba.** Debajo de la region no
+/// cabe siempre: con una region pegada al borde de abajo la barra se sube, y si la region
+/// tambien empieza arriba (grabar la pantalla entera, por ejemplo) acaba DENTRO de lo que
+/// se graba, ver `una_region_que_ocupa_la_pantalla_deja_la_barra_dentro`. Se le dice a
+/// Windows que no la grabe, igual que al menu de la bandeja: quien esta delante la ve y la
+/// pulsa, y en el video sale lo que hay detras. Es la issue #3 (`Arsene-86`, 19 de octubre
+/// de 2026), que la encontro repitiendo el area anterior con la tecla `R`.
+///
 /// Devuelve la etiqueta de la ventana, para que quien la abrio cierre ESA barra y no la que
 /// haya: desde que parar vuelve enseguida, una grabacion nueva puede empezar mientras la
 /// anterior todavia esta guardando, y la limpieza de la vieja no puede llevarse la nueva.
@@ -834,6 +842,11 @@ pub fn open_recorder(app: &AppHandle, region: Rect) -> Result<String> {
         .inner_size(360.0, 52.0)
         .build()?;
     crate::platform::window_style::rounded_corners(&window);
+    if !crate::platform::window_style::fuera_de_la_captura(&window, true) {
+        // En un Windows que no lo acepte, lo unico que pasa es que la barra puede salir en
+        // el video cuando se pone encima: no es motivo para no grabar.
+        eprintln!("[grabar] Windows no ha dejado sacar la barra de la grabación del vídeo");
+    }
 
     colocar_barra(&window, region);
     window.show()?;
@@ -1142,6 +1155,27 @@ mod tests {
         let (_, y) = sitio_de_la_barra(region(300, 700, 800, 370), Some(principal));
         assert!(y < 700, "tenía que subirse encima de la región y está en {y}");
         assert!(y >= 8, "y sin salirse por arriba");
+    }
+
+    /// La issue #3: con la region pegada abajo Y empezando arriba, la barra no tiene
+    /// donde ponerse fuera y acaba DENTRO de lo que se graba.
+    ///
+    /// Es lo que pasa al grabar la pantalla entera: debajo no cabe, encima tampoco (seria
+    /// fuera de la pantalla), asi que se clava en el margen de arriba, que es region. Por
+    /// eso `open_recorder` la saca de la captura: colocarla mejor no es posible.
+    #[test]
+    fn una_region_que_ocupa_la_pantalla_deja_la_barra_dentro() {
+        let principal = monitor(0, 0, 1920, 1080);
+        let region = region(0, 0, 1920, 1080);
+        let (x, y) = sitio_de_la_barra(region, Some(principal));
+        let dentro = x < region.x + region.width as i32
+            && region.x < x + 360
+            && y < region.y + region.height as i32
+            && region.y < y + 52;
+        assert!(
+            dentro,
+            "la barra en {x},{y} tenía que caer dentro de la región, que es lo que obliga a sacarla de la captura"
+        );
     }
 
     /// Una region ancha en un monitor estrecho: la barra se pega al borde, pero dentro.
