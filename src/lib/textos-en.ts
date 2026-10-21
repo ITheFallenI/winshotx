@@ -33,6 +33,10 @@ export const EN: Record<string, string> = {
   "solo mientras dura el disparo": "only while the shot is taken",
 
   "La captura": "The shot",
+  "Este Windows usa la captura antigua": "This Windows uses the old capture",
+  "Las fotos de ventanas con aceleración pueden salir con trozos en negro": "Photos of accelerated windows may come out with black patches",
+  "winshotx hace las fotos con la captura moderna de Windows, que sí ve lo que dibuja la tarjeta gráfica. Esta versión de Windows no la admite, así que van por la de siempre y una ventana acelerada puede salir con trozos en negro. No hay nada que puedas tocar, y las grabaciones no se ven afectadas.":
+    "winshotx takes photos with the modern Windows capture, which does see what the graphics card draws. This version of Windows does not support it, so they go through the old one and an accelerated window can come out with black patches. There is nothing for you to change, and recordings are not affected.",
   "Incluir el cursor": "Include the pointer",
   "Lupa de píxel": "Pixel magnifier",
   "Al soltar el ratón": "When you let go",

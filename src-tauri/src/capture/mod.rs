@@ -138,6 +138,23 @@ fn fotografiar(monitor: &xcap::Monitor, info: &MonitorInfo) -> Result<RgbaImage>
         .map_err(|e| AppError::Msg(e.to_string()))
 }
 
+/// Si este Windows deja fotografiar con la captura moderna, para poder decirlo en los
+/// ajustes. Ver `wgc::disponible`.
+///
+/// Cuando no la deja, las fotos van por GDI y las ventanas que compone la tarjeta grafica
+/// pueden salir con trozos en negro. Eso solo se escribia en el registro, asi que quien lo
+/// sufria no tenia como saber por que sus capturas salian rotas: Munir lo tuvo meses.
+pub fn moderna_disponible() -> bool {
+    #[cfg(windows)]
+    {
+        wgc::disponible()
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 /// Deja lista la captura de las fotos antes del primer atajo: ver `wgc::preparar`.
 pub fn preparar() {
     #[cfg(windows)]

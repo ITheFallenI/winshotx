@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import {
   AppWindow,
   BookOpen,
+  TriangleAlert,
   Camera,
   Compass,
   Clipboard,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 import {
   cacheStats,
+  capturaModerna,
   clearCache,
   getSettings,
   justUpdated,
@@ -248,12 +250,23 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
   const [aplicando, setAplicando] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Si las fotos van por la captura moderna. Arranca en `true` porque es lo normal: si
+   * arrancara en `false`, el aviso saldria un instante en la pantalla de todo el mundo
+   * antes de que Rust conteste.
+   */
+  const [modernaOk, setModernaOk] = useState(true);
 
   const refrescar = useCallback(() => {
     void getSettings().then(setLocal);
     void shortcutStatus().then(setShortcuts);
     void cacheStats().then(setCache);
     void printScreenState().then(setImprPant);
+    void capturaModerna()
+      .then(setModernaOk)
+      .catch(() => {
+        // Una compilacion sin este comando: no se avisa de nada, que es lo de antes.
+      });
     void replayStatus()
       .then((estado) => estado && setReplay(estado))
       .catch(() => {
@@ -508,6 +521,21 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                 </Section>
 
                 <Section title={t("La captura")} tour="la-captura">
+                  {/* Solo cuando pasa, que es casi nunca: en un Windows al dia no sale.
+                      No es un ajuste y no se puede tocar nada, pero sin esto las fotos
+                      salen con trozos en negro y parece culpa de la app. */}
+                  {!modernaOk && (
+                    <Row
+                      icon={<TriangleAlert className="size-4" />}
+                      label={t("Este Windows usa la captura antigua")}
+                      explicacion={t(
+                        "winshotx hace las fotos con la captura moderna de Windows, que sí ve lo que dibuja la tarjeta gráfica. Esta versión de Windows no la admite, así que van por la de siempre y una ventana acelerada puede salir con trozos en negro. No hay nada que puedas tocar, y las grabaciones no se ven afectadas.",
+                      )}
+                      hint={t("Las fotos de ventanas con aceleración pueden salir con trozos en negro")}
+                      tone="warn"
+                      control={null}
+                    />
+                  )}
                   <Row
                     icon={<MousePointer2 className="size-4" />}
                     label={t("Incluir el cursor")}

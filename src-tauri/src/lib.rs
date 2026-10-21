@@ -243,6 +243,7 @@ pub fn run() {
             commands::capture_still,
             commands::capture_all_screens,
             commands::cancel_capture,
+            commands::captura_moderna,
             commands::crono_marca,
             commands::copy_color,
             commands::copy_pinned,

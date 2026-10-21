@@ -56,6 +56,15 @@ export const overlayListo = (monitorId: number, generation: number) =>
 export const cancelCapture = () => invoke<void>("cancel_capture");
 
 /**
+ * Si las fotos van por la captura moderna de Windows o por la de reserva.
+ *
+ * En un Windows que no la tenga, las ventanas que compone la tarjeta grafica salen con
+ * trozos en negro y no hay ajuste que lo cambie: lo unico que se puede hacer es decirlo,
+ * para que quien lo vea sepa que es su Windows y no la app.
+ */
+export const capturaModerna = () => invoke<boolean>("captura_moderna");
+
+/**
  * Una marca del cronometro del camino del atajo. Sin `--crono` en Rust no hace nada, y si
  * el puente falla tampoco: medir no puede romper lo que se mide.
  */

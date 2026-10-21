@@ -33,6 +33,10 @@ export const ZH: Record<string, string> = {
 
   "La captura": "截图",
   "Incluir el cursor": "包含鼠标指针",
+  "Este Windows usa la captura antigua": "此版本 Windows 使用旧的截屏方式",
+  "Las fotos de ventanas con aceleración pueden salir con trozos en negro": "使用硬件加速的窗口截图可能出现黑块",
+  "winshotx hace las fotos con la captura moderna de Windows, que sí ve lo que dibuja la tarjeta gráfica. Esta versión de Windows no la admite, así que van por la de siempre y una ventana acelerada puede salir con trozos en negro. No hay nada que puedas tocar, y las grabaciones no se ven afectadas.":
+    "winshotx 使用 Windows 的现代截屏方式拍照，它能看到显卡绘制的内容。此版本 Windows 不支持这种方式，因此会改用旧方式，使用硬件加速的窗口可能出现黑块。你无需做任何设置，录制不受影响。",
   "Lupa de píxel": "像素放大镜",
   "Al soltar el ratón": "松开鼠标时",
   "va directa al portapapeles": "直接复制到剪贴板",

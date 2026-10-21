@@ -84,6 +84,9 @@ const seccion = bandera("seccion", null);
 // Como si la ventana se hubiera abierto sola despues de actualizar: abre en "La app" y
 // la fila de Actualizaciones dice a que version se ha actualizado.
 const actualizado = args.includes("--actualizado");
+// Un Windows sin la captura moderna, que es la unica forma de ver el aviso de
+// «Este Windows usa la captura antigua»: con el de verdad nunca sale.
+const sinModerna = args.includes("--sin-captura-moderna");
 // Con que tema se pinta la ventana: sistema, claro u oscuro.
 const tema = bandera("tema", "oscuro");
 // Y en que idioma: sistema, es o en.
@@ -224,6 +227,7 @@ const RESPUESTAS = {
     { id: 2, label: "3", x: -1920, y: 0, width: 1920, height: 1080, scale: 1, isPrimary: false },
   ],
   cache_stats: { bytes: 0, sessions: 0 },
+  captura_moderna: !sinModerna,
   print_screen_state: { enabled: false, active: false, takenByWindows: true },
   just_updated: actualizado,
   tray_menu_state: {

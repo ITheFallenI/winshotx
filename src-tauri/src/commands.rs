@@ -430,6 +430,14 @@ mod pruebas_de_color {
     }
 }
 
+/// Si las fotos van por la captura moderna o por la de reserva. Lo preguntan los ajustes
+/// para avisar, porque la diferencia se ve en la foto y no hay nada que el usuario pueda
+/// tocar: en un Windows sin ella, las ventanas aceleradas salen con trozos en negro.
+#[tauri::command]
+pub async fn captura_moderna() -> bool {
+    crate::capture::moderna_disponible()
+}
+
 #[tauri::command]
 pub async fn cancel_capture(app: AppHandle) {
     windows_mgr::close_overlays(&app);

@@ -69,6 +69,7 @@ async function abrirAjustes(
   replay?: ReplayStatus,
   pantallas?: unknown[],
   ajustes?: Partial<Settings>,
+  capturaModerna = true,
 ) {
   responde("get_settings", { ...AJUSTES, ...ajustes });
   responde("shortcut_status", {
@@ -83,6 +84,7 @@ async function abrirAjustes(
   responde("just_updated", false);
   responde("replay_status", replay ?? PARADO);
   responde("list_screens", pantallas ?? []);
+  responde("captura_moderna", capturaModerna);
   render(<SettingsApp onVerBienvenida={vi.fn()} />);
   // La pantalla se pinta vacia y se rellena cuando contesta Rust.
   await waitFor(() => expect(screen.getByRole("button", { name: /Capturar|Capture/ })).toBeInTheDocument());
@@ -503,5 +505,39 @@ describe("elegir pantalla y calidad", () => {
     expect((ultima?.args as { settings: Record<string, unknown> }).settings).toMatchObject({
       replayFps: 60,
     });
+  });
+});
+
+describe("cuando este Windows no tiene la captura moderna", () => {
+  /**
+   * El aviso existe porque la diferencia se ve en la foto y no hay nada que tocar: sin
+   * decirlo, las capturas salen con trozos en negro y parece un fallo de winshotx. Munir
+   * lo tuvo asi meses hasta que mando una foto de Adeorq.
+   */
+  it("lo dice en Capturar, que es donde se viene a buscar por que sale mal una foto", async () => {
+    await abrirAjustes(undefined, undefined, undefined, false);
+    await waitFor(() =>
+      expect(screen.getByText("Este Windows usa la captura antigua")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/trozos en negro/)).toBeInTheDocument();
+  });
+
+  it("y cuando si la tiene, que es lo normal, no se dice nada", async () => {
+    await abrirAjustes();
+    // Se espera a que conteste Rust antes de dar por bueno que no esta: sin esto, la
+    // prueba pasaria igual mirando la pantalla antes de que llegara la respuesta.
+    await waitFor(() =>
+      expect(llamadas.some((l) => l.comando === "captura_moderna")).toBe(true),
+    );
+    expect(screen.queryByText("Este Windows usa la captura antigua")).not.toBeInTheDocument();
+  });
+
+  it("en ingles tampoco se queda en castellano", async () => {
+    aplicarIdioma("en");
+    await abrirAjustes(undefined, undefined, undefined, false);
+    await waitFor(() =>
+      expect(screen.getByText("This Windows uses the old capture")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/trozos en negro/)).not.toBeInTheDocument();
   });
 });
