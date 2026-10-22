@@ -70,6 +70,9 @@ pub struct Settings {
     pub edit_shortcut: String,
     pub save_directory: String,
     pub capture_flow: CaptureFlow,
+    /// Con el flujo al vuelo, guardar tambien cada captura en la carpeta, ademas de
+    /// copiarla. Apagado de fabrica: «se copia sola» siempre ha sido solo copiar.
+    pub instant_save: bool,
     /// Claro, oscuro, o lo que diga Windows.
     pub theme: Theme,
     /// Espannol, ingles, o el idioma de Windows.
@@ -164,6 +167,7 @@ impl Default for Settings {
             edit_shortcut: atajo_de_editar(),
             save_directory: default_save_dir(),
             capture_flow: CaptureFlow::Toolbar,
+            instant_save: false,
             theme: Theme::Sistema,
             language: Language::Sistema,
             copy_after_capture: true,
@@ -296,6 +300,21 @@ pub fn save(app: &AppHandle, settings: &Settings) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn f2_se_guarda_y_se_relee_sin_cambiar_los_otros_atajos() {
+        let originales = Settings::default();
+        let settings = Settings {
+            capture_shortcut: "F2".into(),
+            ..originales.clone()
+        };
+        let json = serde_json::to_string_pretty(&settings).unwrap();
+        let vuelta: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(vuelta.capture_shortcut, "F2");
+        assert_eq!(vuelta.edit_shortcut, originales.edit_shortcut);
+        assert_eq!(vuelta.record_shortcut, originales.record_shortcut);
+        assert_eq!(vuelta.replay_shortcut, originales.replay_shortcut);
+    }
 
     /// Quien venga de una version sin el resalte de color lo encuentra encendido y naranja.
     #[test]

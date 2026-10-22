@@ -66,7 +66,14 @@ export interface OverlayPayload {
   lastRegion: Rect | null;
 }
 
-export type StillAction = "copy" | "save" | "save_as" | "edit" | "pin" | "text";
+export type StillAction =
+  | "copy"
+  | "copy_and_save"
+  | "save"
+  | "save_as"
+  | "edit"
+  | "pin"
+  | "text";
 
 export interface StillResult {
   path: string | null;
@@ -325,6 +332,8 @@ export interface Settings {
   /** Esconder los iconos del escritorio mientras se congela, y devolverlos después. */
   hideDesktopIcons: boolean;
   captureFlow: CaptureFlow;
+  /** Con el flujo al vuelo, guardar también cada captura en la carpeta, además de copiarla. */
+  instantSave: boolean;
   printScreenCapture: boolean;
   takeWinShiftS: boolean;
   onboarded: boolean;

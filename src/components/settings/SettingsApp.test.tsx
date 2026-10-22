@@ -10,8 +10,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsApp } from "./SettingsApp";
 import { aplicarIdioma } from "../../lib/i18n";
-import { llamadas, responde } from "../../test/preparar";
-import type { ReplayStatus, Settings } from "../../lib/types";
+import { emite, llamadas, responde } from "../../test/preparar";
+import { EVENTS, type ReplayStatus, type Settings } from "../../lib/types";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
   check: () => Promise.resolve(null),
@@ -55,6 +55,7 @@ const AJUSTES: Settings = {
   showMagnifier: true,
   windowHighlight: true,
   windowHighlightColor: "#f97316",
+  instantSave: false,
   startWithWindows: false,
   captureDelaySeconds: 0,
   hideDesktopIcons: false,
@@ -93,6 +94,42 @@ async function abrirAjustes(
 }
 
 beforeEach(() => aplicarIdioma("es"));
+
+describe("F2 para capturar region", () => {
+  it("guarda F2 por IPC, conserva los otros ajustes y lo relee al abrir", async () => {
+    await abrirAjustes();
+    fireEvent.click(screen.getAllByTitle("Clic para cambiar el atajo")[0]);
+    fireEvent.keyDown(window, { key: "F2", code: "F2" });
+
+    const esperado = { ...AJUSTES, captureShortcut: "F2" };
+    await waitFor(() => {
+      expect(llamadas.filter((l) => l.comando === "set_settings")).toEqual([
+        { comando: "set_settings", args: { settings: esperado } },
+      ]);
+    });
+    expect(screen.getAllByTitle("Clic para cambiar el atajo")[0]).toHaveTextContent(/^F2$/);
+
+    responde("get_settings", esperado);
+    emite(EVENTS.settingsShown, null);
+    await waitFor(() => expect(llamadas.filter((l) => l.comando === "get_settings")).toHaveLength(2));
+    expect(screen.getAllByTitle("Clic para cambiar el atajo")[0]).toHaveTextContent(/^F2$/);
+  });
+
+  it("sigue avisando cuando Rust no consigue registrar F2", async () => {
+    await abrirAjustes();
+    responde("shortcut_status", {
+      capture: false, edit: true, record: true, replay: false,
+      printScreen: false, winShiftS: false,
+    });
+    fireEvent.click(screen.getAllByTitle("Clic para cambiar el atajo")[0]);
+    fireEvent.keyDown(window, { key: "F2", code: "F2" });
+    await waitFor(() => {
+      expect(screen.getAllByTitle("Clic para cambiar el atajo")[0]).toHaveClass("border-red-500/40");
+    });
+    expect(screen.getByText("esa combinación está ocupada")).toBeInTheDocument();
+    expect(screen.getAllByTitle("Clic para cambiar el atajo")[0]).toHaveTextContent(/^F2$/);
+  });
+});
 
 describe("las cuatro secciones", () => {
   it("estan las cuatro, y ni una mas", async () => {

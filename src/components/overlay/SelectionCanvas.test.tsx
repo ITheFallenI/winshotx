@@ -471,3 +471,93 @@ describe("el resalte de la ventana bajo el cursor", () => {
     expect(marco.className).toContain("border-white/45");
   });
 });
+
+describe("al vuelo, copiar y además guardar", () => {
+  const accion = () =>
+    (llamadas.find((l) => l.comando === "capture_still")?.args as { action: string } | undefined)
+      ?.action;
+
+  async function capturarAlVuelo(instantSave: boolean) {
+    responde("overlay_bootstrap", {
+      ...PAYLOAD,
+      settings: { ...AJUSTES, captureFlow: "instant", instantSave } as Settings,
+    });
+    const lienzo = await abrir();
+    arrastrar(lienzo, { x: 200, y: 300 }, { x: 500, y: 500 });
+    await waitFor(() => expect(accion()).toBeDefined());
+  }
+
+  it("con el ajuste puesto, soltar el recorte lo copia y lo guarda", async () => {
+    await capturarAlVuelo(true);
+    expect(accion()).toBe("copy_and_save");
+  });
+
+  it("sin él, solo se copia, como siempre", async () => {
+    await capturarAlVuelo(false);
+    expect(accion()).toBe("copy");
+  });
+
+  it("con la barra, el botón de copiar sigue copiando y nada más", async () => {
+    responde("overlay_bootstrap", {
+      ...PAYLOAD,
+      settings: { ...AJUSTES, captureFlow: "toolbar", instantSave: true } as Settings,
+    });
+    const lienzo = await abrir();
+    arrastrar(lienzo, { x: 200, y: 300 }, { x: 500, y: 500 });
+    fireEvent.click(await screen.findByLabelText("Copiar"));
+    await waitFor(() => expect(accion()).toBe("copy"));
+  });
+});
+
+describe("el clic derecho cancela", () => {
+  const cancelado = () => llamadas.some((l) => l.comando === "cancel_capture");
+
+  it("al soltarlo, no al pulsarlo, y sin recortar nada", async () => {
+    // Cancelando al pulsar, el overlay se iba antes de que llegara la suelta, y se la
+    // quedaba la aplicacion de debajo: le salia su menu contextual.
+    const lienzo = await abrir();
+    fireEvent.pointerDown(lienzo, { clientX: 200, clientY: 300, button: 2, buttons: 2 });
+    expect(cancelado()).toBe(false);
+    expect(recorte()).toBeNull();
+
+    fireEvent.pointerUp(window, { clientX: 200, clientY: 300, button: 2 });
+    await waitFor(() => expect(cancelado()).toBe(true));
+    expect(llamadas.some((l) => l.comando === "capture_still")).toBe(false);
+  });
+
+  it("el menu contextual tambien cancela, y no sale el del navegador", async () => {
+    const lienzo = await abrir();
+    const evento = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    lienzo.dispatchEvent(evento);
+    expect(evento.defaultPrevented).toBe(true);
+    await waitFor(() => expect(cancelado()).toBe(true));
+  });
+
+  it("los dos a la vez cancelan una sola vez", async () => {
+    const lienzo = await abrir();
+    fireEvent.pointerUp(window, { clientX: 200, clientY: 300, button: 2 });
+    lienzo.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await waitFor(() => expect(cancelado()).toBe(true));
+    expect(llamadas.filter((l) => l.comando === "cancel_capture")).toHaveLength(1);
+  });
+
+  it("a mitad de un arrastre con el izquierdo deshace el recorte y cancela al soltar", async () => {
+    const lienzo = await abrir();
+    fireEvent.pointerDown(lienzo, { clientX: 200, clientY: 300, button: 0, buttons: 1 });
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 400, buttons: 1 });
+    fireEvent.pointerMove(window, { clientX: 410, clientY: 410, buttons: 1 | 2 });
+    expect(recorte()).toBeNull();
+    expect(cancelado()).toBe(false);
+
+    fireEvent.pointerUp(window, { clientX: 410, clientY: 410, button: 2 });
+    await waitFor(() => expect(cancelado()).toBe(true));
+    expect(llamadas.some((l) => l.comando === "capture_still")).toBe(false);
+  });
+
+  it("y el izquierdo sigue recortando", async () => {
+    const lienzo = await abrir();
+    arrastrar(lienzo, { x: 200, y: 300 }, { x: 500, y: 500 });
+    expect(recorte()).toBe("300 × 200");
+    expect(cancelado()).toBe(false);
+  });
+});

@@ -50,8 +50,9 @@ export function ShortcutField({ value, onChange, active }: Props) {
       if (e.metaKey) parts.push("Super");
       if (e.shiftKey) parts.push("Shift");
       if (e.altKey) parts.push("Alt");
-      // Un atajo global sin modificadores secuestraría la tecla en todo el sistema.
-      if (parts.length === 0) return;
+      // Las teclas de función pueden ir solas; las de escribir siguen necesitando
+      // modificadores para no secuestrarlas en todo el sistema.
+      if (parts.length === 0 && !/^F([1-9]|1[0-2])$/.test(e.code)) return;
       // Sin código físico, el atajo saldría como "CmdOrCtrl+Shift+" y Windows no puede
       // registrar eso: pasa con el teclado en pantalla y con las teclas automatizadas.
       if (!e.code) return;

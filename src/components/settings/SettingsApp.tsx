@@ -604,6 +604,21 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                       />
                     }
                   />
+                  {settings.captureFlow === "instant" && (
+                    <Row
+                      icon={<FolderOpen className="size-4" />}
+                      label={t("Guardarla también en la carpeta")}
+                      explicacion={t("Además de copiarla, cada captura se guarda como PNG en tu carpeta de capturas. Así la tienes para pegarla ya y el archivo para luego, sin pasar por la barra.")}
+                      hint={settings.instantSave ? t("se copia y además se guarda") : t("solo se copia")}
+                      control={
+                        <Switch
+                          checked={settings.instantSave}
+                          onChange={(v) => patch({ instantSave: v })}
+                          label={t("Guardarla también en la carpeta")}
+                        />
+                      }
+                    />
+                  )}
                   <Row
                     icon={<Clipboard className="size-4" />}
                     label={t("Copiar al guardar")}

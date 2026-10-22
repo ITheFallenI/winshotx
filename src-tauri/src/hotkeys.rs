@@ -251,6 +251,26 @@ pub fn register(app: &AppHandle, settings: &Settings) -> ShortcutStatus {
 mod tests {
     use super::*;
 
+    #[test]
+    fn las_teclas_de_funcion_no_necesitan_modificadores() {
+        for numero in 1..=12 {
+            let texto = format!("F{numero}");
+            let shortcut = texto.parse::<Shortcut>().expect("tecla de funcion valida");
+            assert!(shortcut.mods.is_empty(), "{texto}");
+            assert_eq!(shortcut.key.to_string(), texto);
+            assert_ne!(shortcut, format!("CmdOrCtrl+{texto}").parse::<Shortcut>().unwrap());
+        }
+    }
+
+    #[test]
+    fn f2_conserva_la_identidad_para_detectar_duplicados() {
+        let captura = "F2".parse::<Shortcut>().unwrap();
+        let editor = "f2".parse::<Shortcut>().unwrap();
+        assert_eq!(captura, editor);
+        assert_eq!(captura.id(), editor.id());
+        assert_ne!(captura.id(), "CmdOrCtrl+F2".parse::<Shortcut>().unwrap().id());
+    }
+
     /// El nombre de la tecla se escribe a mano en una constante: si el parser deja de
     /// entenderlo, esto lo dice aqui y no en la maquina de alguien que pulsa y no pasa nada.
     #[test]

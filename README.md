@@ -163,6 +163,11 @@ and `Esc` closes it.
 Every global shortcut can be changed in the settings by clicking the field and typing the new
 combination. If another application already holds it, the field turns red and says so.
 
+Function keys `F1`–`F12` can be selected without Ctrl, Shift, Alt or Win. For example, click
+the **Capture a region** shortcut field and press `F2`. This keeps the existing defaults until
+you change them. Windows reserves `F12` for debuggers, so it may not register as a global
+shortcut; unavailable keys use the same conflict warning as other shortcuts.
+
 `Print Screen` belongs to the Snipping Tool through a per-user registry value, so registering the
 hotkey alone looks like it worked and never fires. The switch in the settings clears that value and
 takes the key, and turning it off puts the value back exactly as it was. `Win+Shift+S` is attended by Windows

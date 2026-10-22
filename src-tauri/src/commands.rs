@@ -196,6 +196,18 @@ fn entregar(
             crate::platform::clipboard::copy_image(&image, &bytes)?;
             result.copied = true;
         }
+        // La captura al vuelo, con «guardarla tambien» encendido: al portapapeles SIEMPRE
+        // (es lo que promete «se copia sola», diga lo que diga «copiar al guardar») y,
+        // ademas, a la carpeta. Si guardar falla, lo copiado se queda copiado.
+        "copy_and_save" => {
+            let bytes = png::to_bytes(&image)?;
+            crate::platform::clipboard::copy_image(&image, &bytes)?;
+            result.copied = true;
+            let directory = PathBuf::from(state.settings.read().save_directory.clone());
+            let path = crate::archivos::destino(&directory, "png")?;
+            png::save(&image, &path, width, height)?;
+            result.path = Some(path.to_string_lossy().to_string());
+        }
         "save" => {
             let directory = PathBuf::from(state.settings.read().save_directory.clone());
             // El nombre lo pone `archivos`, que ademas comprueba que no exista ya: dos

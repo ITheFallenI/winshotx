@@ -469,20 +469,33 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     [payload, scale],
   );
 
+  /**
+   * Al vuelo, copiar puede ser copiar Y guardar, si asi lo dicen los ajustes. Se decide
+   * aqui, donde sale la orden, y no en cada tecla: Ctrl+A, R, 0 y soltar el raton copian
+   * todas por el mismo sitio. Con la barra, «copiar» es el boton de copiar y nada mas.
+   */
+  const accionFinal = useCallback(
+    (action: StillAction): StillAction =>
+      action === "copy" && !conBarraRef.current && payload?.settings.instantSave
+        ? "copy_and_save"
+        : action,
+    [payload],
+  );
+
   const capturarRegion = useCallback(
     async (rect: Rect, action: StillAction) => {
       if (!payload || busy) return;
       setBusy(true);
       setError(null);
       try {
-        await captureStill(toPhysical(rect), action);
+        await captureStill(toPhysical(rect), accionFinal(action));
       } catch (e) {
         setError(String(e));
       } finally {
         setBusy(false);
       }
     },
-    [payload, busy, toPhysical],
+    [payload, busy, toPhysical, accionFinal],
   );
 
   /**
@@ -509,14 +522,14 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
       setBusy(true);
       setError(null);
       try {
-        await captureAllScreens(action);
+        await captureAllScreens(accionFinal(action));
       } catch (e) {
         setError(String(e));
       } finally {
         setBusy(false);
       }
     },
-    [busy],
+    [busy, accionFinal],
   );
 
   const runStill = useCallback(
@@ -753,6 +766,39 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     cambiarBarra,
   ]);
 
+  /**
+   * El clic derecho cancela al SOLTARLO, no al pulsarlo.
+   *
+   * Windows abre los menus contextuales al soltar el boton. Cancelando al pulsar, el
+   * overlay ya no estaba cuando llegaba la suelta, y se la llevaba la aplicacion de debajo,
+   * que sacaba su menu. Asi la suelta se la queda el overlay y luego se va.
+   *
+   * Se escucha `contextmenu` (llega al soltar y de paso se le quita el menu al navegador)
+   * y tambien `pointerup` del derecho, por si el webview no manda el primero. `cancelado`
+   * evita pedir dos veces lo mismo cuando llegan los dos.
+   */
+  useEffect(() => {
+    let cancelado = false;
+    const cancelar = () => {
+      if (cancelado) return;
+      cancelado = true;
+      void cancelCapture();
+    };
+    const onContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      cancelar();
+    };
+    const onUp = (e: PointerEvent) => {
+      if (e.button === 2) cancelar();
+    };
+    window.addEventListener("contextmenu", onContextMenu);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("contextmenu", onContextMenu);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [payload]);
+
   const readHex = useCallback(
     (cssX: number, cssY: number) => {
       if (!source) return;
@@ -773,6 +819,14 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     if (mode.kind === "idle") return;
 
     const onMove = (e: PointerEvent) => {
+      // El derecho a mitad de un arrastre no trae su propio `pointerdown` (el puntero ya
+      // esta pulsado): llega como un movimiento con ese boton sumado. Se deshace el
+      // recorte y la captura se cancela al soltarlo, como el clic derecho normal.
+      if (e.buttons & 2) {
+        setMode({ kind: "idle" });
+        setSelection(null);
+        return;
+      }
       const x = e.clientX;
       const y = e.clientY;
       setCursor({ x, y });
@@ -869,6 +923,14 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
   }, [llevarsePantalla]);
 
   const onPointerDown = (e: React.PointerEvent) => {
+    // Clic derecho: cancelar, como en ShareX, pero al SOLTAR (ver el efecto de
+    // `contextmenu`). Antes no se miraba el boton y el derecho recortaba igual que el
+    // izquierdo. La rueda y los botones laterales no hacen nada.
+    if (e.button === 2) {
+      e.preventDefault();
+      return;
+    }
+    if (e.button !== 0) return;
     if (busy) return;
     // Lo que nace encima de la barra todavia no es nada: se apunta donde empezo y se
     // espera a ver si el puntero se mueve (recorte por debajo) o se suelta (clic del
