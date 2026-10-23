@@ -110,6 +110,7 @@ fn resample(
     to: usize,
     fps: u32,
     velocidad: f32,
+    unir: bool,
 ) -> (Vec<usize>, Vec<u32>) {
     // Una sesion sin un solo fotograma no tiene nada que recortar, y el `&frames[0..=0]`
     // de abajo revienta con "range end index 0 out of range for slice of length 0": no es
@@ -147,12 +148,18 @@ fn resample(
             ((queda as f32 / velocidad).round() as u64).max(1)
         } as u32;
         let picked = from + cursor;
-        if indices.last() != Some(&picked) {
+        // Para el MP4 (`unir=false`) la velocidad es fija, asi que cada paso es un
+        // fotograma del video: un mismo fotograma capturado se REPITE en vez de alargar
+        // el retardo del anterior. El GIF (`unir=true`) junta los repetidos en uno solo
+        // con el retardo acumulado, que es como funciona un GIF.
+        if unir && indices.last() == Some(&picked) {
+            // El mismo fotograma se queda en pantalla mas tiempo en vez de repetirse.
+            if let Some(ultimo) = delays.last_mut() {
+                *ultimo += slot;
+            }
+        } else {
             indices.push(picked);
             delays.push(slot);
-        } else if let Some(last) = delays.last_mut() {
-            // El mismo fotograma se queda en pantalla mas tiempo en vez de repetirse.
-            *last += slot;
         }
         t += paso_origen;
     }
@@ -319,6 +326,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
                 request.to,
                 request.fps,
                 request.velocidad(),
+                true,
             );
             let path = destination_path(app, &request, "gif")?;
             if request.engine == "ffmpeg" && ffmpeg::available() {
@@ -376,6 +384,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
                 request.to,
                 request.fps,
                 request.velocidad(),
+                false,
             );
             let path = destination_path(app, &request, "mp4")?;
             if request.engine == "ffmpeg" && ffmpeg::available() {
@@ -1047,7 +1056,7 @@ mod tests {
     fn bajar_los_fps_reparte_el_tiempo_sin_perderlo() {
         // 10 fotogramas de 20 ms = 200 ms de clip, exportados a 25 fps (40 ms).
         let session = session_with(&[20; 10]);
-        let (indices, delays) = resample(&session, 0, 9, 25, 1.0);
+        let (indices, delays) = resample(&session, 0, 9, 25, 1.0, true);
         assert_eq!(indices.len(), 5);
         assert_eq!(delays.iter().sum::<u32>(), 200);
     }
@@ -1058,8 +1067,8 @@ mod tests {
     fn al_doble_de_velocidad_dura_la_mitad() {
         // 40 fotogramas de 25 ms = un segundo, exportado a 20 fps.
         let session = session_with(&[25; 40]);
-        let (normal, retardos_normales) = resample(&session, 0, 39, 20, 1.0);
-        let (rapido, retardos_rapidos) = resample(&session, 0, 39, 20, 2.0);
+        let (normal, retardos_normales) = resample(&session, 0, 39, 20, 1.0, true);
+        let (rapido, retardos_rapidos) = resample(&session, 0, 39, 20, 2.0, true);
 
         assert_eq!(retardos_normales.iter().sum::<u32>(), 1_000);
         assert_eq!(retardos_rapidos.iter().sum::<u32>(), 500, "a 2x tiene que durar la mitad");
@@ -1097,7 +1106,7 @@ mod tests {
 
         let duracion_de = |velocidad: f32| -> u64 {
             let session = session_with(&[25; 40]);
-            let (indices, delays) = resample(&session, 0, 39, 20, velocidad);
+            let (indices, delays) = resample(&session, 0, 39, 20, velocidad, true);
             let salida = dir.join(format!("v{velocidad}.gif"));
             let mut loader = |index: usize| {
                 Ok(image::RgbaImage::from_raw(ancho, alto, lienzos[index].clone()).unwrap())
@@ -1143,7 +1152,7 @@ mod tests {
     #[test]
     fn a_camara_lenta_dura_el_doble() {
         let session = session_with(&[25; 40]);
-        let (_, retardos) = resample(&session, 0, 39, 20, 0.5);
+        let (_, retardos) = resample(&session, 0, 39, 20, 0.5, true);
         assert_eq!(retardos.iter().sum::<u32>(), 2_000);
     }
 
@@ -1151,15 +1160,30 @@ mod tests {
     fn los_fotogramas_repetidos_alargan_el_retardo() {
         // Un solo fotograma que dura 500 ms no debe repetirse 12 veces a 25 fps.
         let session = session_with(&[500]);
-        let (indices, delays) = resample(&session, 0, 0, 25, 1.0);
+        let (indices, delays) = resample(&session, 0, 0, 25, 1.0, true);
         assert_eq!(indices, vec![0]);
         assert_eq!(delays, vec![500]);
+    }
+
+    /// El MP4 se codifica a velocidad fija, asi que cada paso de `resample` tiene que
+    /// ser su propio fotograma: un tramo quieto no puede salir como un unico fotograma
+    /// con un retraso de varios segundos, porque eso le rompe la linea de tiempo al
+    /// codificador y el video se queda sin la segunda mitad. Con `unir=false` los
+    /// fotogramas repetidos se REPITEN en vez de juntarse.
+    #[test]
+    fn el_mp4_no_junta_fotogramas_en_retrasos_largos() {
+        let session = session_with(&[500, 500]);
+        let (_, delays) = resample(&session, 0, 1, 25, 1.0, false);
+        // A 25 fps el paso es de 40 ms: ningun retraso deberia pasar de ahi por mucho.
+        assert!(delays.iter().all(|d| *d <= 80), "retrasos: {delays:?}");
+        // Y el segundo entero de grabacion se cubre con esos fotogramas de 40 ms.
+        assert_eq!(delays.iter().sum::<u32>(), 1_000);
     }
 
     #[test]
     fn el_rango_recortado_manda() {
         let session = session_with(&[50; 8]);
-        let (indices, _) = resample(&session, 2, 4, 20, 1.0);
+        let (indices, _) = resample(&session, 2, 4, 20, 1.0, true);
         assert!(indices.iter().all(|i| (2..=4).contains(i)));
     }
 
@@ -1172,9 +1196,33 @@ mod tests {
     #[test]
     fn una_sesion_sin_fotogramas_no_revienta() {
         let vacia = session_with(&[]);
-        let (indices, delays) = resample(&vacia, 0, 0, 30, 1.0);
+        let (indices, delays) = resample(&vacia, 0, 0, 30, 1.0, true);
         assert!(indices.is_empty(), "de una lista vacia no sale ningun indice");
         assert!(delays.is_empty(), "ni ninguna duracion");
+    }
+
+    /// El caso real que reporto el usuario: WGC no entrega fotogramas mientras la pantalla
+    /// esta quieta, asi que un tramo de 16 s queda como UN solo fotograma de 16 s. Si el MP4
+    /// junta ese tramo en un fotograma con retraso de 16 s, el codificador de velocidad fija
+    /// se rompe y la segunda mitad del video desaparece. Con `unir=false` el tramo quieto se
+    /// reparte en fotogramas de `step_ms`, cubriendo todo el tiempo sin perderlo.
+    #[test]
+    fn mp4_tramo_estatico_largo_no_pierde_tiempo() {
+        // 1 s de grabacion que cambia (20 fotogramas de 50 ms) seguido de 16 s quietos
+        // (un unico fotograma de 16000 ms, tal cual lo entrega WGC).
+        let mut dur = vec![50u32; 20];
+        dur.push(16_000);
+        let session = session_with(&dur);
+        let (indices, delays) = resample(&session, 0, session.frames.len() - 1, 25, 1.0, false);
+        // A 25 fps el paso es 40 ms: ningun retraso puede pasarse de ahi.
+        assert!(
+            delays.iter().all(|d| *d <= 80),
+            "hay un retraso enorme, el tramo quieto se junto: {delays:?}"
+        );
+        // El clip entero dura 17 s (1000 + 16000 ms). Los fotogramas de 40 ms lo cubren todo.
+        let total_ms: u32 = delays.iter().sum();
+        assert_eq!(total_ms, 17_000, "se perdio tiempo del tramo estatico");
+        assert_eq!(indices.len() as u32, total_ms / 40, "un fotograma por cada paso de 40 ms");
     }
 }
 
