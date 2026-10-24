@@ -1,346 +1,164 @@
 <div align="center">
 
-**English** · [Español](README.es.md)
+<img src="docs/img/logo.png" alt="winshotx" width="96">
 
-<img src="frontlaxweb/social-en.png" alt="winshotx: crop the screen before you blink" width="820">
-
-<br>
+# winshotx (ITheFallenI edition)
 
 [![MIT license](https://img.shields.io/badge/license-MIT-0a9bff?style=flat-square)](LICENSE)
-[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&logo=windows&logoColor=white)](#status)
-[![Latest release](https://img.shields.io/github/v/release/Mun1to/winshotx?style=flat-square&color=22c55e&label=release)](https://github.com/Mun1to/winshotx/releases/latest)
-[![Installer 2.59 MB](https://img.shields.io/badge/installer-2.59%20MB-22c55e?style=flat-square)](#install)
-[![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-get%20it-0078d4?style=flat-square&logo=microsoftstore&logoColor=white)](https://apps.microsoft.com/detail/9P1NKWNRXD6Z)
-[![Built with Rust](https://img.shields.io/badge/Rust-1.82%2B-dea584?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![Tauri 2](https://img.shields.io/badge/Tauri-2.11-ffc131?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
+[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&logo=windows&logoColor=white)](#install)
+[![Latest release](https://img.shields.io/github/v/release/ITheFallenI/winshotx?style=flat-square&color=22c55e&label=release)](https://github.com/ITheFallenI/winshotx/releases/latest)
+[![Tauri 2](https://img.shields.io/badge/Tauri-2-ffc131?style=flat-square&logo=tauri&logoColor=white)](https://tauri.app)
 
-**[⬇ Download for Windows](https://github.com/Mun1to/winshotx/releases/latest/download/winshotx-setup.exe)**
-&nbsp;·&nbsp;
-**[▶ Try it in your browser](https://winshotx.com/en/)**
-&nbsp;·&nbsp;
-[Compare with the Snipping Tool](#snipping-tool-against-winshotx)
+**[⬇ Download the latest setup](https://github.com/ITheFallenI/winshotx/releases/latest)**
 
 </div>
 
 ---
 
-A free and open source **Snipping Tool alternative for Windows**: region screenshots with a pixel
-magnifier, **GIF and MP4 screen recording**, and a frame by frame editor. It shows the selection
-already painted 114 ms after the shortcut with three screens, uses 33 MB of memory and fits in a
-2.59 MB installer. No account, no cloud, no telemetry and no bundled FFmpeg.
+A fast, local screenshot and screen recording tool for Windows.
 
-> **The interface speaks English and Spanish**, and follows whichever one Windows is set to. You
-> can pin it to either in **Settings → The app → Appearance**. The identifiers and comments in the
-> source are in Spanish; the commits, this page and the
-> [home page](https://winshotx.com/en/) are in English.
+> **Based on [Mun1to/winshotx](https://github.com/Mun1to/winshotx)** by Munir Torres (MIT).
+> This fork started from upstream `0.3.6` and goes its own way from here: everything below the
+> "What this fork adds" heading is new or changed in this edition. The upstream capture engine,
+> recorder and frame editor are still at the core of it.
 
 ## Install
 
-[**Download the installer**](https://github.com/Mun1to/winshotx/releases/latest/download/winshotx-setup.exe)
-· 2.59 MB · it installs for your user only, so Windows never asks for administrator rights. Older
-versions are in [Releases](../../releases).
+Grab `winshotx_<version>_x64-setup.exe` from
+[**Releases**](https://github.com/ITheFallenI/winshotx/releases/latest) and run it. It installs for
+your user only, so Windows does not ask for administrator rights.
 
-Three other ways, same app:
+It lives in the system tray. If you cannot see the icon, look behind the `^` arrow on the taskbar.
 
-```
-winget install Mun1to.winshotx
-scoop install extras/winshotx
-```
+> This edition does **not** update from upstream. Installing it over the original winshotx keeps
+> your settings and captures, and upstream releases will no longer replace it.
 
-or the **portable** `winshotx-<version>-portable-x64.zip` from
-[Releases](../../releases): one executable, nothing installed, settings still in
-`%APPDATA%\winshotx`.
+## What this fork adds
 
-or from the [**Microsoft Store**](https://apps.microsoft.com/detail/9P1NKWNRXD6Z), where Microsoft signs the package and the Store keeps
-it updated, so the app's own updater stays out of the way.
+### Gallery
+- A **Gallery** tab (and **Capture gallery** in the tray) for every saved screenshot, GIF and MP4,
+  grouped by day.
+- Search by filename, filter by date and type, and page through large folders.
+- Thumbnails load only when they are on screen, two at a time, so big folders stay light.
+- Preview with **Ctrl + mouse wheel** zoom, drag to pan, **Fit** and **100%**. Videos load only when
+  opened.
+- Copy, open, show in folder, rename, or move to the **Recycle Bin** (restorable).
 
-It lives in the system tray with no window of its own. Windows hides new tray icons, so if you
-cannot see it, look behind the `^` arrow on the taskbar.
+### Image comparison
+- Pick two captures (or any two files) and compare them with a reveal slider or a difference view.
+- Adjustable noise tolerance and zoom; export a side-by-side or difference PNG.
 
-**It updates itself.** In **Settings → The app → Updates** a button shows up when a new version is out,
-and one click downloads it, installs it and restarts the app. Every download is signed and the
-signature is checked before anything is installed, so a tampered file is rejected.
+### Editable annotations
+- Press **0** / **Select annotation** to move, resize, recolour and delete marks after drawing them.
+- Edit text and its size after placing it.
+- Full **Undo / Redo** (`Ctrl+Z`, `Ctrl+Y` / `Ctrl+Shift+Z`).
+- **Freehand brush** (`7`) with thin, medium and thick strokes.
+- Closing the editor with unsaved changes asks first.
 
-## What it does
+### Open existing images
+- **Open image…** from the tray, Settings or `Ctrl+O` in the editor (PNG, JPEG, BMP).
+- `Ctrl+V` pastes an image from the clipboard straight into the editor.
+- Drop an image file onto the editor to open it.
+- Each image gets its own editor window, so opening another never throws away unsaved work.
 
-|  |  |
-|---|---|
-| 📸 **Region capture** | Over a frozen screenshot, with a 6× magnifier that shows the exact colour in hex, copied with `C` and snapping to system windows: one click takes the whole window. |
-| 🛡️ **Cover up personal data** | One click in the editor finds the emails, phone numbers, cards, bank accounts and ID numbers in the image and drops a mosaic over each one, which destroys the pixels rather than smudging them. Nothing is matched by shape: a card has to pass its check digit, an IBAN its remainder, an ID the letter it is owed, so an invoice does not come out half covered. |
-| 🪟 **Record one window** | Press `W` with a window highlighted and that window is what gets recorded, even when something covers it: a notification landing on top no longer ends up in the video. The click rings follow the window if you move it. |
-| 🛡️ **Cover up personal data** | One click in the editor finds the emails, phone numbers, cards, bank accounts and ID numbers in the image and drops a mosaic over each one, which destroys the pixels rather than smudging them. Nothing is matched by shape: a card has to pass its check digit, an IBAN its remainder, an ID the letter it is owed, so an invoice does not come out half covered. |
-| 🪟 **Record one window** | Press `W` with a window highlighted and that window is what gets recorded, even when something covers it: a notification landing on top no longer ends up in the video. The click rings follow the window if you move it. |
-| 🎬 **Region recording** | 15, 30 or 60 fps through Windows Graphics Capture, with no overlays leaking into the video. A thin red frame shows what is being recorded (amber while paused), the bar below says whether sound is going in, and discarding asks twice. |
-| ✂️ **Frame by frame editor** | Thumbnail strip, trimming the start and the end, looped playback, one-click aspect ratios (9:16, 4:5, 1:1, 16:9), cropping the image, scaling with locked aspect ratio and a quality control. |
-| 🔍 **Recording studio** | The camera moves in on every click and shortcut and follows the mouse while it is there, the pointer is drawn as large as you want without pixelating (and squeezes on each click), and clicks get a ring sized to the video. **All of it decided when exporting**, over frames already on disk, and **all of it shown live in the editor preview** as you move the sliders: what you see is what comes out. |
-| ⏩ **Speed on export** | 0.5×, 2× or 4× over what you recorded. A tutorial has stretches where nothing happens, and those play at 2× without losing a thing. |
-| 💾 **Export** | GIF, MP4, PNG or JPG, to disk and to the clipboard: an image pastes as an image, and a GIF or MP4 pastes as a **file** into Slack, Discord or Explorer. |
-| ⏪ **The last few seconds** | It records all the time, drops the old, and one key keeps the last 15, 30 or 60 seconds. The good part of a screen almost always happens **before** anyone thinks of recording it. |
-| 🔊 **System audio** | What comes out of your speakers goes into the MP4, captured straight from the default output. No extra driver, and you keep hearing it while it records. |
-| ⏱️ **Shoot on a timer** | Wait 3 or 5 seconds before the screen freezes, with the countdown in the middle of the screen. It is the only way to photograph an open menu, because pressing the shortcut closes it. |
-| 🔤 **Text out of an image** | `T` on a selection, or the button in the editor, reads the text in the picture with Windows' own OCR and copies it. Works on a recording too, on whichever frame you are looking at. |
-| 🗂️ **Your latest shots** | The tray menu shows the last few you saved as thumbnails, and one click puts one back on the clipboard. There is no history file: the folder is the history, so deleting a shot from outside removes it from there too. |
-| 🌍 **Spanish, English and Chinese** | It follows the Windows language, or you pin the one you want. Chinese came from a contributor. |
-| 🔤 **Text out of an image** | `T` on a selection, or the button in the editor, reads the text in the picture with Windows' own OCR and copies it. Works on a recording too, on whichever frame you are looking at. |
-| 🗂️ **Your latest shots** | The tray menu shows the last few you saved as thumbnails, and one click puts one back on the clipboard. There is no history file: the folder is the history, so deleting a shot from outside removes it from there too. |
-| 🌍 **Spanish, English and Chinese** | It follows the Windows language, or you pin the one you want. Chinese came from a contributor. |
-| 🌓 **Light and dark** | It follows the Windows theme and changes with it, or you pin the one you want. |
-| 🔒 **Everything stays local** | No account, no telemetry, no uploads. The only network call is checking GitHub for a new version. |
+### Capture overlay
+- **Window spotlight**: the window under the cursor stays bright while the rest of the screen dims,
+  with a glowing border and title chip that slide between windows. You can turn it off or pick its
+  colour (8 swatches plus a custom colour picker).
+- **Highlights the window you can actually see.** Upstream picked the smallest window under the
+  cursor, which was often one hidden behind another. Click-through overlays (NVIDIA, Discord, Game
+  Bar) are ignored.
+- **Multi-monitor:** the magnifier, crosshair and mode bar only appear on the screen the cursor is on.
+- **Right-click cancels on release**, so the app underneath no longer gets a stray context menu.
+- The overlay reliably takes keyboard focus even when the taskbar or Start menu was in front, so
+  `Esc` always works.
 
-<img src="docs/img/ajustes.png" alt="winshotx settings panel" width="820">
+### Saving and the tray
+- **Dated folders:** captures are saved to `YYYY-MM-DD/Images`, `YYYY-MM-DD/Videos` and
+  `YYYY-MM-DD/GIFs` inside your shots folder. Older files are still found by the gallery and tray.
+- **Copy and save at once:** in the "copied automatically" profile, every capture can also be saved
+  as a PNG without going through the toolbar.
+- **Configurable tray left-click:** open the latest save folder (default, including **Save as**
+  locations), capture, record, Gallery, Settings or the captures folder. Right-click still opens the
+  menu.
 
-## Snipping Tool against winshotx
+### Shortcuts
+- **Function keys on their own:** `F1`–`F12` work as shortcuts without Ctrl/Shift/Alt/Win (for
+  example `F2` to capture).
+- **Clear a shortcut** with its remove button or Delete/Backspace.
+- **Shortcuts over admin windows:** an optional helper lets shortcuts work while Task Manager or
+  another elevated window is in front. Windows asks for permission once when you turn it on.
+- Fixed shortcuts wrongly showing as "taken" after quickly changing settings.
 
-Same machine with Windows 11, three runs each, both starting from cold. The clock stops when the
-selection is actually on screen. The [full table](https://winshotx.com/en/#frente-a-frente)
-has the nineteen rows, including the five the Snipping Tool wins.
+### Recording and export
+- Choose **H.264** or **H.265 (HEVC)** before recording; the choice is remembered.
+- MP4 exports no longer lose time when the screen stays still. Long still stretches used to cut
+  off the end of the video.
+- Stopping while paused no longer adds the pause to the end of the recording.
+- Exporting a recording with no frames shows an error instead of crashing.
+- Faster GIF export read-ahead, lighter audio buffering, and a faster magnifier/colour picker.
 
-| | winshotx | Snipping Tool |
-|---|---|---|
-| From shortcut to the selection on screen, already painted (three screens) | **114 ms** | 920 ms |
-| Memory while capturing | **33 MB** | 253 MB |
-| Memory sitting idle | **31 MB** | 98 MB |
-| Records GIF | **yes** | no |
-| Frame by frame editor | **yes** | no |
-| Pick your own shortcut | **yes** | no |
-| Draw and annotate on top | **six marks, with numbered steps** | pen, shapes and text |
-| Copy the text out of the image | **yes, with the T key and inside the editor too** | yes |
-| System audio when recording | **yes, and the microphone mixed in** | yes |
-| Timer before capturing | 3 or 5 seconds | **3, 5 or 10 seconds** |
-| Cover up personal data | **one click, and the mosaic destroys the pixels** | automatic, and it blurs |
+### Lighter in the background
+- Hidden overlay and settings windows release their memory until they are needed again.
 
-## Is this what you were looking for?
+Some of the recording fixes come from contributor pull requests to upstream by
+[@wang13zhe](https://github.com/wang13zhe), and they're credited in the commit history.
 
-- **"I want a Snipping Tool alternative for Windows."** This is it, and it is 33 times faster to
-  open. The Snipping Tool still wins at annotating, text recognition and system audio, and the
-  table above says so.
-- **"How do I record a GIF of my screen on Windows?"** Press `Ctrl+Shift+5`, drag over the area,
-  press it again to stop, and export to GIF from the editor. No FFmpeg to install.
-- **"I need a lightweight screen recorder that does not eat my RAM."** 33 MB while capturing,
-  31 MB waiting in the tray.
-- **"Something like ShareX or CleanShot X, but simpler."** The same global shortcuts and the same
-  frozen-screen overlay, without the hundreds of settings.
-- **"I want to pick a colour off the screen."** The magnifier gives you the hex code of the pixel
-  under the cursor at 6× zoom.
-- **"Does it upload my screenshots anywhere?"** No. There is no account, no telemetry and no
-  network calls other than checking for updates on GitHub.
+## What it does (from upstream)
+
+Region capture over a frozen screen with a 6× pixel magnifier and hex colour picker, window
+snapping, GIF and MP4 recording through Windows Graphics Capture, system audio, a frame-by-frame
+editor with trimming, cropping, aspect presets and export speed, a "last few seconds" replay
+buffer, OCR text copy (`T`), pinning (`A`), personal data masking, a capture timer, light and dark
+themes, and Spanish, English and Chinese. No account, no cloud and no telemetry.
 
 ## Shortcuts
 
 | Shortcut | Action |
 |---|---|
 | `Ctrl+Shift+2` | Capture a region |
-| `Win+Shift+L` | Capture a region and open it in the editor, skipping the toolbar |
-| In the editor | A shield covers up the emails, phones, cards, bank accounts and IDs it finds |
+| `Win+Shift+L` | Capture a region straight into the editor |
 | `Ctrl+Shift+5` | Record a region · press again to stop |
-| `Ctrl+Shift+6` | Keep what just happened · while "the last few seconds" is on |
-| `Print Screen` | Capture a region · once you take the key from the Snipping Tool |
-| `Enter` | Copy the selection to the clipboard |
-| `Ctrl+S` | Save the selection to the shots folder |
-| `Ctrl+Shift+S` | Save it wherever you want: Windows asks for the folder and the name |
-| `E` | Open the selection in the editor |
-| `A` | Pin the selection: it floats on top of everything, where it was |
-| `T` | Copy the text inside the selection, read by Windows' own OCR |
-| `C` | Copy the colour under the cursor, the one the loupe is showing |
-| `G` / `V` | Record the selection as GIF / video |
-| `W` | Record **only the window under the cursor**, even when something covers it |
-| `Ctrl+A` | Select the whole monitor |
-| `←↑→↓` | Move the selection · `Shift` for steps of 10 · `Alt` resizes |
-| `Esc` | Cancel |
+| `Ctrl+Shift+6` | Keep the last few seconds (when enabled) |
+| `Enter` / `Ctrl+S` / `Ctrl+Shift+S` | Copy / save / save as |
+| `E` / `A` / `T` / `C` | Editor / pin / copy text / copy colour |
+| `G` / `V` / `W` | Record as GIF / video / only the window under the cursor |
+| `Ctrl+A` | Whole monitor |
+| `Esc` or right-click | Cancel |
 
-In the editor: `space` plays, `I` and `O` mark the start and end of the trim, `C` crops the image,
-`←` `→` step through frames, `Ctrl+S` exports with whatever the panel has set, `Ctrl+Shift+S` asks
-where to save it first, and `Esc` closes —
-letting go of the crop frame or the drawing tool first, since closing throws the frames away.
+Editor: `0` select, `1` arrow, `2` box, `3` text, `4` highlight, `5` numbered step, `6` hide details,
+`7` brush, `Ctrl+Z` / `Ctrl+Y` undo/redo, `Ctrl+O` open image, `Ctrl+V` paste image.
 
-Saved captures are grouped by local date inside your shots folder, for example
-`Pictures/winshotx/2026-10-22/Images/`. Each day separates **Images**, **Videos** and **GIFs**;
-folders are created automatically as needed. Gallery and the tray's recent shots also
-include older files saved directly in the shots folder or date folder. Existing
-files stay where they are, and **Save as** still lets you choose the exact location.
+Every global shortcut can be changed in Settings.
 
-Before recording, open **Settings > Record > Video codec** and choose **H.264** for
-compatibility or **H.265 (HEVC)** for smaller files. The choice is remembered and follows
-each recording into its saved video and the editor, where it can still be changed.
-HEVC uses the encoder available through Windows; if it is unavailable, choose H.264.
-Recording previews keep using H.264. No extra codec package is bundled with winshotx.
-Shortcut fields can be cleared with their remove button, or with Delete/Backspace while
-assigning a shortcut. An unassigned shortcut shows a warning and is released by Windows.
-
-In the editor, to annotate: `1` arrow, `2` box, `3` text, `4` highlight, `5` numbered step,
-`6` hide details and `7` freehand brush. The brush uses the selected colour and offers thin,
-medium and thick strokes. Each stroke is one undo step and is included in saved images and
-videos. `Ctrl+Z` undoes the last mark. Steps number themselves, so adding one in the
-middle does not leave two threes in the same picture.
-
-Press **0** or choose **Select annotation** to select and move existing marks. Shapes,
-text and brush strokes have resize handles. Change their colour, edit selected text and
-its size, or press Delete to remove the selected mark. **Ctrl+Y / Ctrl+Shift+Z** redoes an
-edit. Closing with unsaved annotation/crop changes asks before discarding them.
-
-**Open image** is available in the tray and the gear Settings tab. In the editor, **Ctrl+O**
-opens a PNG/JPEG/BMP, **Ctrl+V** imports an image from the clipboard, and dropping an image
-file opens it in a separate editor. The original image stays intact.
-
-Open the **Gallery** tab or **Capture gallery** from the tray to browse saved screenshots,
-GIFs and MP4s by day. Search filenames, filter dates/types, preview, copy, open, rename or
-move a file to the Recycle Bin. Images can be reopened in the editor. Saved videos can be
-previewed or opened in the default player; reimporting them into the frame editor is pending.
-Image previews support **Ctrl + mouse wheel** to zoom, dragging to pan, **Fit** and **100%**.
-Only nearby thumbnails load, with at most two decodes in flight; videos load only when opened.
-
-In the gear **Settings** tab, **Tray icon > Left click** chooses between opening the latest
-save folder (the default), capture, record, Gallery, Settings, or the captures root folder.
-The last save location includes custom **Save As** destinations and is remembered after
-restarting. Before any save history is available, it uses the most recent existing capture
-or the captures root folder. Right-click opens the tray menu.
-
-Select two gallery images and choose **Compare selected**, or choose **Compare files**.
-Use the reveal divider or difference view, adjust noise tolerance and zoom, and save a
-side-by-side or difference PNG. Comparison keeps the source images at their original
-pixel scale and reports different dimensions.
-
-On a pinned shot: `Ctrl+C` copies it, `Ctrl+S` saves it to the shots folder, `T` copies its text
-and `Esc` closes it.
-
-Every global shortcut can be changed in the settings by clicking the field and typing the new
-combination. If another application already holds it, the field turns red and says so.
-
-Function keys `F1`–`F12` can be selected without Ctrl, Shift, Alt or Win. For example, click
-the **Capture a region** shortcut field and press `F2`. This keeps the existing defaults until
-you change them. Windows reserves `F12` for debuggers, so it may not register as a global
-shortcut; unavailable keys use the same conflict warning as other shortcuts.
-
-`Print Screen` belongs to the Snipping Tool through a per-user registry value, so registering the
-hotkey alone looks like it worked and never fires. The switch in the settings clears that value and
-takes the key, and turning it off puts the value back exactly as it was. `Win+Shift+S` is attended by Windows
-ahead of any program, hook or hotkey. The only thing that takes it away is turning the S off in
-`DisabledHotkeys`, which the same switch does: it costs `Win+S`, the search, and switching it off puts
-everything back as it was. The desktop only reads that list when it starts, so it has to start again:
-the **Aplicar** button on that row restarts Explorer, which takes two seconds and closes nothing,
-instead of making anyone sign out. For removing the Snipping
-Tool altogether, the app opens the Windows screen where that is done, and never uninstalls anything
-by itself.
-
-## Two ways to capture
-
-Both use the same shortcut and the same selection. What changes is the moment you let go:
-
-| Profile | What happens when you release the mouse |
-|---|---|
-| **Sale la barra** | A toolbar appears over the selection: copy, save, edit |
-| **Se copia sola** | Nothing appears · the image is already in the clipboard |
-
-The profile is picked in the welcome on the first run, and changed any time in the settings.
-
-## What comes out of the crop, and from which screen
-
-At the top centre, where Windows puts its own, there is a bar with four buttons. The first three
-say **what comes out**: photo, video or GIF, picked before cropping and bound to `F`, `V` and `G`.
-The fourth says **where from**: press it and every monitor puts its own number in the middle, and
-`1`, `2` or `3` takes that whole screen, wherever the pointer happens to be. Clicking the screen
-does the same.
-
-Recording honours the profile: with "se copia sola" it starts the moment you let go, and with
-"sale la barra" it lets you adjust the rectangle first, because getting a recording wrong costs
-minutes rather than one keystroke.
-
-<details>
-<summary><b>How it is built</b></summary>
-
-<br>
-
-| Layer | Choice | Why |
-|---|---|---|
-| Desktop | [Tauri 2](https://tauri.app) | small binary, system webview, Rust backend |
-| Updates | Tauri `updater` plugin, minisign signatures | one button, without leaving the app or installing blind |
-| Interface | React 19 + Vite + Tailwind 4 + framer-motion | independent windows, native feeling animation |
-| Still capture | [`xcap`](https://crates.io/crates/xcap) | enumerates monitors and windows with their real coordinates |
-| Recording | [`windows-capture`](https://crates.io/crates/windows-capture) | Windows Graphics Capture, 60 fps at no CPU cost |
-| MP4 | Media Foundation, hardware H.264 | 0 MB of dependencies, system acceleration |
-| GIF | [`gif`](https://crates.io/crates/gif) + [`color_quant`](https://crates.io/crates/color_quant) | global palette, dithering and frame differencing |
-| Editing cache | lossless [QOI](https://qoiformat.org) | fast to write and editable frame by frame |
-
-**The selection overlay is not a transparent window.** The screen is captured, shown frozen, and
-the selection happens on top of that image. It sidesteps the Tauri v2 transparency bug on Windows,
-removes the flicker of moving content underneath, and gives a pixel exact magnifier for free.
-
-**No bundled FFmpeg.** MP4 is written by Media Foundation in hardware, and the GIF is produced in
-pure Rust with a global palette, Floyd-Steinberg dithering and writing only the rectangle that
-changed between frames. If you happen to have `ffmpeg` on your `PATH`, the editor offers a maximum
-quality engine (`palettegen`) as well, but it is never downloaded and never shipped.
-
-[`docs/TRAMPAS.md`](docs/TRAMPAS.md) (in Spanish) collects the seven Tauri v2 traps on Windows that
-cost hours of debugging: synchronous commands that freeze the interface, windows that must not be
-created from a global shortcut thread, window labels that cannot be reused, the first click being
-eaten by the system, a canvas tainted by the `asset:` protocol, an incomplete CSP that only shows up
-in the installer, and the signing key that is passed one way and not the other.
-
-</details>
-
-<details>
-<summary><b>Development</b></summary>
-
-<br>
+## Development
 
 ```bash
-pnpm install
-pnpm approve-builds --all
-pnpm tauri dev      # starts the app (it lives in the system tray)
-pnpm tauri build    # NSIS installer in target/release/bundle/nsis
+pnpm install          # or: npm install
+pnpm tauri dev        # run the app (it lives in the tray)
+pnpm tauri build      # NSIS setup in src-tauri/target/release/bundle/nsis
 ```
 
-Backend tests are not pretend: they capture the real screen, record a clip through Windows Graphics
-Capture and export GIF and MP4 files that are then read back to check they are valid.
+Without pnpm on your PATH:
 
 ```bash
-cd src-tauri
-cargo test
+npx tauri build --config '{"build":{"beforeBuildCommand":"npm run build"}}'
 ```
 
-The site lives in [`frontlaxweb/`](frontlaxweb) and Cloudflare Pages serves it. Every push runs
-the checks and then deploys, so the English pages, the asset hashes and the sitemap all have to
-agree first:
+Tests:
 
 ```bash
-node frontlaxweb/generar-en.mjs      # rebuild /en/, the FAQ schema and the asset hashes
-python frontlaxweb/generar-social.py # rebuild both 1200x630 cards
+npx vitest run        # frontend
+cd src-tauri && cargo test --lib
 ```
 
-Publishing a version needs the private signing key, which is **not in this repository** and without
-which the updater would reject the download:
+Source identifiers and comments are mostly in Spanish, inherited from upstream.
+[`docs/TRAMPAS.md`](docs/TRAMPAS.md) lists the Tauri v2 pitfalls on Windows found along the way.
 
-```bash
-export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/winshotx.key)"
-export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""   # the key was generated without one
-pnpm tauri build
-node scripts/publicar.mjs --publicar   # writes latest.json and creates the release
-```
-
-`publicar.mjs` refuses to run if `package.json` and `Cargo.toml` disagree on the version, or if the
-`.sig` is older than the installer, which is what happens when you build without the key.
-
-After publishing, `node scripts/verificar-firma.mjs` downloads what the release actually serves and
-checks the signature against the public key inside the app, with ed25519 over BLAKE2b-512. A
-signature made with a different key is the one failure that gives no error at all: the updater
-quietly refuses every download and every installed copy stays where it is.
-
-The winget manifests are in [`packaging/winget`](packaging/winget).
-
-</details>
-
-## Status
-
-Runs on Windows 10 1903 or newer. macOS and Linux compile, but every platform specific function
-returns "esta función solo está implementada en Windows": capture, recording, MP4 encoding,
-clipboard and autostart are all behind `#[cfg(windows)]` with a stub for everything else, so
-porting means filling those stubs in.
-
-**What is missing:** automatic blurring of personal data (winshotx blurs by hand, with a mosaic),
-a timer longer than five seconds, and any language other than Spanish and English. The full
-comparison on the site says which rows the Snipping Tool still wins.
+**Updates:** the updater points at this fork's releases, but signed update packages are not
+published yet. Updating means downloading the new setup from Releases.
 
 ## License
 
-[MIT](LICENSE). Use it, change it and sell it if you want. Built by
-[Munir Torres](https://munito.dev).
+[MIT](LICENSE). Original work © Munir Torres ([Mun1to/winshotx](https://github.com/Mun1to/winshotx)).
+Fork changes by [ITheFallenI](https://github.com/ITheFallenI).

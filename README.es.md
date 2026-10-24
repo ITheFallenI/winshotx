@@ -1,3 +1,5 @@
+> **Nota:** este archivo describe el proyecto original [Mun1to/winshotx](https://github.com/Mun1to/winshotx). Lo que añade esta edición está en el [README en inglés](README.md).
+
 <div align="center">
 
 **Español** · [English](README.md)
