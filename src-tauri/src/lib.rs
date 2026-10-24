@@ -104,6 +104,25 @@ fn purge_old_sessions(root: &std::path::Path) {
     }
 }
 
+/// Las miniaturas de la galeria van por hash de ruta, tamanno y fecha: renombrar o borrar
+/// una captura deja la suya huerfana para siempre. Se rehacen solas al verse, asi que
+/// basta con tirar las que llevan una semana.
+fn purge_gallery_thumbnails(root: &std::path::Path) {
+    let Ok(entries) = std::fs::read_dir(root.join("gallery-thumbnails")) else {
+        return;
+    };
+    let limit = Duration::from_secs(60 * 60 * 24 * 7);
+    for entry in entries.flatten() {
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .is_ok_and(|modified| SystemTime::now().duration_since(modified).unwrap_or_default() > limit);
+        if stale {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
 pub fn run() {
     // El ayudante de administrador y su instalador son este mismo ejecutable con otro
     // argumento: hacen lo suyo y se van sin levantar ni Tauri ni WebView2.
@@ -174,6 +193,7 @@ pub fn run() {
             purge_old_sessions(&temp_root);
             purge_pins(&temp_root);
             purge_replay(&temp_root);
+            purge_gallery_thumbnails(&temp_root);
 
             app.manage(AppState::new(config.clone(), temp_root, recien_actualizado));
             app.manage(last_saved::LatestSave::load(handle.path().app_config_dir()?.join("latest-save-folder.json")));

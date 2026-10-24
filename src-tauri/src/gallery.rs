@@ -67,7 +67,10 @@ fn rename_capture(path: &Path, name: &str) -> Result<PathBuf> {
     }
     let target = path.with_file_name(name);
     if target == path { return Ok(target); }
-    if target.exists() { return Err("A file with that name already exists.".into()); }
+    // Windows ignores case, so `shot.png` -> `Shot.png` finds the file itself: that is a
+    // rename, not a collision.
+    let same_file = std::fs::canonicalize(&target).is_ok_and(|t| std::fs::canonicalize(path).is_ok_and(|p| p == t));
+    if target.exists() && !same_file { return Err("A file with that name already exists.".into()); }
     #[cfg(windows)] unsafe {
         // MoveFileW refuses collisions, including a file created after the exists check.
         windows::Win32::Storage::FileSystem::MoveFileW(
@@ -224,8 +227,13 @@ mod tests {
         assert!(rename_capture(&path,"bad?.png").is_err());
         assert_eq!(std::fs::read(dir.join("taken.png")).unwrap(), b"keep");
         let moved = rename_capture(&path,"renamed.png").unwrap();
-        assert_eq!(std::fs::read(moved).unwrap(), b"original");
+        assert_eq!(std::fs::read(&moved).unwrap(), b"original");
         assert!(!path.exists());
+        #[cfg(windows)] {
+            let recased = rename_capture(&moved, "Renamed.png").unwrap();
+            assert_eq!(std::fs::read(&recased).unwrap(), b"original");
+            assert!(std::fs::read_dir(&dir).unwrap().flatten().any(|e| e.file_name() == "Renamed.png"));
+        }
         std::fs::remove_dir_all(dir).unwrap();
     }
     #[test]
