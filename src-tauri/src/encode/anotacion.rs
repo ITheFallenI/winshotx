@@ -1,9 +1,4 @@
-//! Las cinco cosas que se pueden dibujar encima de una captura antes de exportarla.
-//!
-//! Flecha, rectángulo, texto, resaltado y difuminado. **Cinco y ni una más**: el editor de
-//! imagen no es el producto, y cada herramienta que se añade es una fila más en una barra
-//! que hoy se lee de un vistazo. Lo que hace falta para señalar algo o para tapar un dato
-//! está aquí; lo demás es otro programa.
+//! Las marcas que se pueden dibujar encima de una captura antes de exportarla.
 //!
 //! **Las coordenadas van de 0 a 1, no en píxeles.** Quien dibuja lo hace sobre una vista
 //! previa que casi nunca mide lo que va a medir el archivo, y el mismo dibujo tiene que
@@ -34,6 +29,13 @@ pub struct Anotacion {
     /// Lo que dice, si es un texto.
     #[serde(default)]
     pub text: String,
+    #[serde(default)]
+    pub points: Vec<[f32; 2]>,
+    /// Grosor del pincel como fraccion del ancho; las otras marcas no lo usan.
+    #[serde(default)]
+    pub stroke_width: Option<f32>,
+    #[serde(default)]
+    pub font_size: Option<f32>,
 }
 
 impl Anotacion {
@@ -85,6 +87,7 @@ pub fn pintar(imagen: &mut RgbaImage, anotaciones: &[Anotacion]) {
         let (ancho, alto) = imagen.dimensions();
         let (x1, y1, x2, y2) = anotacion.caja(ancho, alto);
         match anotacion.kind.as_str() {
+            "brush" => pincel(imagen, anotacion),
             "box" => marco(imagen, x1, y1, x2, y2, anotacion.rgb()),
             "arrow" => flecha(imagen, &anotacion.caja_sin_ordenar(ancho, alto), anotacion.rgb()),
             "highlight" => resaltar(imagen, x1, y1, x2, y2, anotacion.rgb()),
@@ -94,7 +97,7 @@ pub fn pintar(imagen: &mut RgbaImage, anotaciones: &[Anotacion]) {
             // menor de las dos, y eso los mandaba a todos al borde de la imagen.
             "text" => {
                 let (x, y, _, _) = anotacion.caja_sin_ordenar(ancho, alto);
-                texto(imagen, x, y, &anotacion.text, anotacion.rgb());
+                texto_con_tamano(imagen, x, y, &anotacion.text, anotacion.rgb(), anotacion.font_size);
             }
             "step" => {
                 let (x, y, _, _) = anotacion.caja_sin_ordenar(ancho, alto);
@@ -294,6 +297,39 @@ fn linea(imagen: &mut RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32, radio: f32,
 }
 
 /// Un rectángulo hueco: se señala lo de dentro sin taparlo.
+fn pincel(imagen: &mut RgbaImage, marca: &Anotacion) {
+    let grosor = marca.stroke_width.unwrap_or(0.006);
+    if !grosor.is_finite() { return; }
+    let radio = (grosor.clamp(0.000_001, 16.0) * imagen.width() as f32 / 2.0).max(0.5);
+    let color = marca.rgb();
+    let puntos: Vec<(f32, f32)> = marca.points.iter()
+        .filter(|p| p[0].is_finite() && p[1].is_finite())
+        .map(|p| (p[0] * imagen.width() as f32, p[1] * imagen.height() as f32))
+        .collect();
+    for i in 0..puntos.len() {
+        let (x1, y1) = puntos[i.saturating_sub(1)];
+        let (x2, y2) = puntos[i];
+        let Some((x1, y1, x2, y2)) = recortar_segmento(imagen, x1, y1, x2, y2, radio) else { continue };
+        let Some((izq, arriba, der, abajo)) = dentro(imagen,
+            (x1.min(x2) - radio - 1.0).floor() as i32,
+            (y1.min(y2) - radio - 1.0).floor() as i32,
+            (x1.max(x2) + radio + 1.0).ceil() as i32,
+            (y1.max(y2) + radio + 1.0).ceil() as i32) else { continue };
+        let (dx, dy) = (x2 - x1, y2 - y1);
+        let largo2 = dx * dx + dy * dy;
+        for y in arriba..=abajo {
+            for x in izq..=der {
+                let t = if largo2 > 0.0 {
+                    (((x as f32 - x1) * dx + (y as f32 - y1) * dy) / largo2).clamp(0.0, 1.0)
+                } else { 0.0 };
+                let distancia = ((x as f32 - x1 - t * dx).powi(2) +
+                    (y as f32 - y1 - t * dy).powi(2)).sqrt();
+                punto(imagen, x, y, color, (radio + 0.5 - distancia).clamp(0.0, 1.0));
+            }
+        }
+    }
+}
+
 fn marco(imagen: &mut RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32, color: [u8; 3]) {
     let radio = grosor(imagen.width()) as f32 / 2.0;
     linea(imagen, x1, y1, x2, y1, radio, color);
@@ -389,13 +425,15 @@ fn difuminar(imagen: &mut RgbaImage, x1: i32, y1: i32, x2: i32, y2: i32) {
 }
 
 /// Texto sobre la captura, dibujado con la fuente del sistema.
-fn texto(imagen: &mut RgbaImage, x: i32, y: i32, texto: &str, color: [u8; 3]) {
+fn texto_con_tamano(imagen: &mut RgbaImage, x: i32, y: i32, texto: &str, color: [u8; 3], tamano: Option<f32>) {
     if texto.is_empty() {
         return;
     }
     // El tamaño de la letra sale del ancho de la imagen, igual que el grosor del trazo: un
     // texto de 22 px sobre una captura de 3.000 no se lee.
-    let alto_letra = ((imagen.width() as f32 / 42.0).round() as i32).clamp(14, 72);
+    let alto_letra = tamano.filter(|v| v.is_finite() && *v > 0.0)
+        .map(|v| (v * imagen.width() as f32).round().clamp(1.0, 512.0) as i32)
+        .unwrap_or_else(|| ((imagen.width() as f32 / 42.0).round() as i32).clamp(14, 72));
     // El clic manda, pero el texto tiene que caber: puesto contra el borde derecho se iba
     // fuera y se perdía casi entero. Y si el clic cayó fuera de la imagen, que es lo normal
     // cuando el recorte se llevó esa zona, no se escribe nada.
@@ -504,12 +542,30 @@ fn paso(imagen: &mut RgbaImage, cx: i32, cy: i32, _numero: &str, color: [u8; 3])
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
+    #[test]
+    fn el_tamano_elegido_del_texto_cambia_los_pixeles_exportados() {
+        let mut a = marca("text", 0.1, 0.1, 0.1, 0.1);
+        a.text = "Text size".into();
+        a.font_size = Some(0.02);
+        let mut small = lienzo(1000, 400);
+        pintar(&mut small, &[a.clone()]);
+        a.font_size = Some(0.06);
+        let mut large = lienzo(1000, 400);
+        pintar(&mut large, &[a]);
+        assert!(tocados(&small) > 0);
+        assert!(tocados(&large) > tocados(&small) * 3);
+    }
+
     fn lienzo(ancho: u32, alto: u32) -> RgbaImage {
         RgbaImage::from_pixel(ancho, alto, Rgba([255, 255, 255, 255]))
     }
 
     fn marca(kind: &str, x1: f32, y1: f32, x2: f32, y2: f32) -> Anotacion {
         Anotacion {
+            points: Vec::new(),
+            stroke_width: None,
+            font_size: None,
             kind: kind.into(),
             x1,
             y1,
@@ -525,6 +581,41 @@ mod tests {
             .pixels()
             .filter(|p| p.0 != [255, 255, 255, 255])
             .count()
+    }
+
+    #[test]
+    fn el_pincel_guarda_la_curva_y_no_una_recta_entre_los_extremos() {
+        let mut imagen = RgbaImage::from_pixel(100, 100, Rgba([255, 255, 255, 255]));
+        let mut trazo = marca("brush", 0.1, 0.1, 0.9, 0.1);
+        trazo.points = vec![[0.1, 0.1], [0.5, 0.8], [0.9, 0.1]];
+        trazo.stroke_width = Some(0.04);
+        pintar(&mut imagen, &[trazo]);
+        assert_eq!(imagen.get_pixel(50, 80).0, [239, 68, 68, 255]);
+        assert_eq!(imagen.get_pixel(50, 10).0, [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn el_grosor_del_pincel_escala_con_la_exportacion_y_un_clic_es_un_punto() {
+        let mut trazo = marca("brush", 0.5, 0.5, 0.5, 0.5);
+        trazo.points = vec![[0.5, 0.5]];
+        trazo.stroke_width = Some(0.1);
+        let mut chica = RgbaImage::from_pixel(100, 100, Rgba([255, 255, 255, 255]));
+        let mut grande = RgbaImage::from_pixel(200, 200, Rgba([255, 255, 255, 255]));
+        pintar(&mut chica, std::slice::from_ref(&trazo));
+        pintar(&mut grande, &[trazo]);
+        assert_eq!(chica.get_pixel(50, 54).0, [239, 68, 68, 255]);
+        assert_eq!(grande.get_pixel(100, 108).0, [239, 68, 68, 255]);
+        assert_eq!(chica.get_pixel(50, 56).0, [255, 255, 255, 255]);
+        assert_eq!(grande.get_pixel(100, 111).0, [255, 255, 255, 255]);
+    }
+
+    #[test]
+    fn un_pincel_fuera_del_recorte_no_se_pega_al_borde() {
+        let mut imagen = RgbaImage::from_pixel(100, 100, Rgba([255, 255, 255, 255]));
+        let mut trazo = marca("brush", -0.5, 0.1, -0.5, 0.9);
+        trazo.points = vec![[-0.5, 0.1], [-0.5, 0.9]];
+        pintar(&mut imagen, &[trazo]);
+        assert_eq!(tocados(&imagen), 0);
     }
 
     #[test]
@@ -771,6 +862,9 @@ mod tests {
             &mut imagen,
             &[
                 Anotacion {
+                    points: Vec::new(),
+                    stroke_width: None,
+                    font_size: None,
                     kind: "highlight".into(),
                     x1: 0.29,
                     y1: 0.2,
@@ -780,6 +874,9 @@ mod tests {
                     text: String::new(),
                 },
                 Anotacion {
+                    points: Vec::new(),
+                    stroke_width: None,
+                    font_size: None,
                     kind: "box".into(),
                     x1: 0.29,
                     y1: 0.36,
@@ -789,6 +886,9 @@ mod tests {
                     text: String::new(),
                 },
                 Anotacion {
+                    points: Vec::new(),
+                    stroke_width: None,
+                    font_size: None,
                     kind: "arrow".into(),
                     x1: 0.9,
                     y1: 0.78,
@@ -798,6 +898,9 @@ mod tests {
                     text: String::new(),
                 },
                 Anotacion {
+                    points: Vec::new(),
+                    stroke_width: None,
+                    font_size: None,
                     kind: "blur".into(),
                     x1: 0.29,
                     y1: 0.62,
@@ -807,6 +910,9 @@ mod tests {
                     text: String::new(),
                 },
                 Anotacion {
+                    points: Vec::new(),
+                    stroke_width: None,
+                    font_size: None,
                     kind: "text".into(),
                     x1: 0.3,
                     y1: 0.85,
@@ -972,6 +1078,9 @@ mod tests {
         let mut marcas = vec![
             // Contra las cuatro esquinas y los cuatro bordes.
             Anotacion {
+                points: Vec::new(),
+                stroke_width: None,
+                font_size: None,
                 kind: "step".into(),
                 x1: 0.0,
                 y1: 0.0,
@@ -981,6 +1090,9 @@ mod tests {
                 text: "1".into(),
             },
             Anotacion {
+                points: Vec::new(),
+                stroke_width: None,
+                font_size: None,
                 kind: "step".into(),
                 x1: 1.0,
                 y1: 1.0,
@@ -990,6 +1102,9 @@ mod tests {
                 text: "2".into(),
             },
             Anotacion {
+                points: Vec::new(),
+                stroke_width: None,
+                font_size: None,
                 kind: "text".into(),
                 x1: 0.99,
                 y1: 0.06,
@@ -1000,6 +1115,9 @@ mod tests {
             },
             // Un rectángulo del que solo entra un trozo.
             Anotacion {
+                points: Vec::new(),
+                stroke_width: None,
+                font_size: None,
                 kind: "box".into(),
                 x1: 0.6,
                 y1: 0.3,
@@ -1010,6 +1128,9 @@ mod tests {
             },
             // Una flecha que apunta fuera: tiene que salir con su ángulo.
             Anotacion {
+                points: Vec::new(),
+                stroke_width: None,
+                font_size: None,
                 kind: "arrow".into(),
                 x1: 0.25,
                 y1: 0.45,
@@ -1020,6 +1141,9 @@ mod tests {
             },
             // Un resaltado que se sale por abajo.
             Anotacion {
+                points: Vec::new(),
+                stroke_width: None,
+                font_size: None,
                 kind: "highlight".into(),
                 x1: 0.08,
                 y1: 0.82,

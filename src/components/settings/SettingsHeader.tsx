@@ -1,9 +1,9 @@
-import { Check } from "lucide-react";
+import { Check, Keyboard, Settings } from "lucide-react";
 import { useT } from "../../lib/i18n";
 import { Segmented } from "../ui/Segmented";
 
 /**
- * Las cuatro secciones de los ajustes, en el orden en que se usan.
+ * Las secciones de la ventana principal, en el orden en que se usan.
  *
  * Sin frase explicando de que va cada una: la seccion se llama Capturar y dentro pone
  * "Al pulsar el atajo", asi que una linea diciendo "el atajo, la espera y que entra en la
@@ -12,8 +12,9 @@ import { Segmented } from "../ui/Segmented";
 export const SECCIONES = [
   { value: "capturar", label: "Capturar" },
   { value: "grabar", label: "Grabar" },
-  { value: "teclas", label: "Teclas de Windows" },
-  { value: "app", label: "La app" },
+  { value: "galeria", label: "Galería" },
+  { value: "teclas", label: "Teclas" },
+  { value: "app", label: "Ajustes" },
 ] as const satisfies readonly { value: string; label: string }[];
 
 export type SeccionId = (typeof SECCIONES)[number]["value"];
@@ -27,7 +28,7 @@ interface Props {
 }
 
 /**
- * La cabecera: la version a la izquierda, las cuatro secciones en el medio y salir a la
+ * La cabecera: la version a la izquierda, las secciones en el medio y salir a la
  * derecha.
  *
  * Sin logo ni nombre: la ventana ya se llama "winshotx · ajustes" en su propia barra de
@@ -49,7 +50,11 @@ interface Props {
  */
 export function SettingsHeader({ activa, onCambiar, version, guardado, onSalir }: Props) {
   const t = useT();
-  const secciones = SECCIONES.map((s) => ({ value: s.value, label: t(s.label) }));
+  const secciones = SECCIONES.map((s) => ({ value: s.value, label: t(s.label),
+    leadingIcon: s.value === "teclas" ? <Keyboard className="size-3.5" />
+      : undefined,
+    icono: s.value === "app" ? <Settings className="size-3.5" /> : undefined,
+  }));
   // Tres columnas y las de los lados iguales: es lo unico que deja las secciones en el
   // centro DE LA VENTANA. Con una fila normal quedaban centradas en el hueco que dejaban
   // los lados, que no miden lo mismo, asi que salian corridas hacia un lado.
@@ -65,7 +70,7 @@ export function SettingsHeader({ activa, onCambiar, version, guardado, onSalir }
         <Segmented
           ajustado
           value={activa}
-          options={secciones as unknown as { value: SeccionId; label: string }[]}
+          options={secciones}
           onChange={onCambiar}
         />
       </nav>

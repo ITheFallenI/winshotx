@@ -45,6 +45,7 @@ mod tests {
         drop(fotogramas);
         let frames = cache.finish(u64::from(cuantos) * 33, 30).unwrap();
         let mut session = SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "bench".into(),
             dir: dir.clone(),
             region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },

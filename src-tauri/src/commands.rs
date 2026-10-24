@@ -275,6 +275,7 @@ fn entregar(
         other => return Err(AppError::Msg(format!("acción desconocida: {other}"))),
     }
 
+    if let Some(path) = &result.path { crate::last_saved::remember(app, std::path::Path::new(path)); }
     windows_mgr::close_overlays(app);
     Ok(result)
 }
@@ -378,6 +379,7 @@ pub async fn save_pinned(app: AppHandle, path: String) -> Result<String> {
     let directory = PathBuf::from(app.state::<AppState>().settings.read().save_directory.clone());
     let destino = crate::archivos::destino(&directory, "png")?;
     std::fs::copy(&origen, &destino)?;
+    crate::last_saved::remember(&app, &destino);
     Ok(destino.to_string_lossy().to_string())
 }
 
@@ -648,38 +650,29 @@ pub struct CapturaReciente {
 #[tauri::command]
 pub async fn ultimas_capturas(app: AppHandle, cuantas: usize) -> Result<Vec<CapturaReciente>> {
     let directory = PathBuf::from(app.state::<AppState>().settings.read().save_directory.clone());
-    let Ok(entradas) = std::fs::read_dir(&directory) else {
-        // Que la carpeta no exista todavía no es un error: es que no se ha guardado nada.
-        return Ok(Vec::new());
-    };
     let ahora = std::time::SystemTime::now();
-    let mut fotos: Vec<(std::time::SystemTime, PathBuf)> = entradas
-        .flatten()
-        .filter_map(|e| {
-            let ruta = e.path();
-            let extension = ruta.extension()?.to_string_lossy().to_lowercase();
-            if !matches!(extension.as_str(), "png" | "jpg" | "jpeg" | "webp") {
-                return None;
-            }
-            Some((e.metadata().ok()?.modified().ok()?, ruta))
-        })
-        .collect();
-    fotos.sort_by(|a, b| b.0.cmp(&a.0));
-    Ok(fotos
+    let fotos = crate::archivos::capturas_recientes(&directory, cuantas);
+    let scope = app.asset_protocol_scope();
+    fotos
         .into_iter()
-        .take(cuantas.clamp(1, 20))
-        .map(|(cuando, ruta)| CapturaReciente {
-            nombre: ruta
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default(),
-            hace_segundos: ahora
-                .duration_since(cuando)
-                .map(|d| d.as_secs())
-                .unwrap_or(0),
-            path: ruta.to_string_lossy().to_string(),
+        .map(|(cuando, ruta)| {
+            // convertFileSrc no concede permisos: las capturas viven en Imagenes o en
+            // una carpeta elegida, fuera del scope fijo de la cache. Abrir solo cada
+            // archivo devuelto, antes de que el webview intente pintar su miniatura.
+            scope.allow_file(&ruta)?;
+            Ok(CapturaReciente {
+                nombre: ruta
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
+                hace_segundos: ahora
+                    .duration_since(cuando)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
+                path: ruta.to_string_lossy().to_string(),
+            })
         })
-        .collect())
+        .collect()
 }
 
 /// Vuelve a dejar en el portapapeles una captura que ya estaba guardada.
@@ -733,6 +726,9 @@ fn caja_de(
     }
     let margen = (y2 - y1) * MARGEN;
     Some(crate::encode::anotacion::Anotacion {
+        points: Vec::new(),
+        stroke_width: None,
+        font_size: None,
         kind: "blur".into(),
         x1: ((x1 - margen) / ancho).clamp(0.0, 1.0),
         y1: ((y1 - margen) / alto).clamp(0.0, 1.0),
@@ -946,6 +942,37 @@ pub async fn use_print_screen(app: AppHandle, enabled: bool) -> Result<PrintScre
     Ok(print_screen_now(&state))
 }
 
+/// Enciende o apaga el ayudante que lleva los atajos con privilegios, para que funcionen
+/// tambien con una ventana de administrador delante. Encender y apagar piden UAC una vez:
+/// crean o borran la tarea programada que lo arranca. Ver `atajos_admin`.
+#[tauri::command]
+pub async fn use_admin_shortcuts(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<crate::hotkeys::ShortcutStatus> {
+    if !crate::atajos_admin::disponible() {
+        return Err(AppError::Msg(
+            "esta opción no está disponible en la versión de la Microsoft Store".into(),
+        ));
+    }
+    // Esperar al aviso de UAC puede llevar un rato: fuera de los hilos de Tauri.
+    tauri::async_runtime::spawn_blocking(move || {
+        if enabled {
+            crate::atajos_admin::instalar()?;
+        } else {
+            crate::atajos_admin::desinstalar()?;
+        }
+        let state = app.state::<AppState>();
+        let mut settings = state.settings.read().clone();
+        settings.admin_shortcuts = enabled;
+        *state.settings.write() = settings.clone();
+        crate::settings::save(&app, &settings)?;
+        Ok(crate::hotkeys::register(&app, &settings))
+    })
+    .await
+    .map_err(|e| AppError::Msg(e.to_string()))?
+}
+
 /// Le quita `Win+Mayus+S` al escritorio, o se la devuelve.
 ///
 /// Esto es aparte de todo lo demas porque es lo unico de winshotx que le quita algo al
@@ -1085,15 +1112,19 @@ pub async fn tray_menu_state(app: AppHandle) -> Result<TrayMenuState> {
 /// congela la pantalla, y hacerlo con el menu todavia puesto lo mete en la foto.
 #[tauri::command]
 pub async fn tray_menu_action(app: AppHandle, action: String) -> Result<()> {
-    crate::tray_menu::esconder(&app);
-    crate::tray::ejecutar(&app, &action);
+    let dentro = app.clone();
+    app.run_on_main_thread(move || {
+        crate::tray_menu::esconder(&dentro);
+        crate::tray::ejecutar(&dentro, &action);
+    })?;
     Ok(())
 }
 
 /// El alto que ha medido el menu, para que la ventana se ajuste a su contenido.
 #[tauri::command]
 pub async fn resize_tray_menu(app: AppHandle, height: f64) -> Result<()> {
-    crate::tray_menu::redimensionar(&app, height);
+    let dentro = app.clone();
+    app.run_on_main_thread(move || crate::tray_menu::redimensionar(&dentro, height))?;
     Ok(())
 }
 
@@ -1119,7 +1150,7 @@ fn elegir_donde_guardar(app: &AppHandle, carpeta: &std::path::Path, extension: &
     let elegido = app
         .dialog()
         .file()
-        .set_directory(carpeta)
+        .set_directory(sugerido.parent()?)
         .set_file_name(&nombre)
         .add_filter(extension.to_uppercase(), &[extension])
         .blocking_save_file()?;

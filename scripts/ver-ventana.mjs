@@ -142,6 +142,7 @@ const AJUSTES = {
   replayScreen: null,
   replayFps: 15,
   replayHeight: 720,
+  trayClickAction: "latestFolder",
   saveDirectory: "C:\\Users\\yo\\Pictures\\winshotx",
   copyAfterCapture: true,
   openEditorAfterRecording: true,
@@ -367,8 +368,9 @@ addEventListener("load", () => {
 const ROTULOS = {
   capturar: "Capturar",
   grabar: "Grabar",
-  teclas: "Teclas de Windows",
-  app: "La app",
+  galeria: "Galería",
+  teclas: "Teclas",
+  app: "Ajustes",
 };
 const SECCION = seccion
   ? `<script>
@@ -407,16 +409,10 @@ addEventListener("load", () => {
   setTimeout(() => {
     // Por posición, no por texto: los rótulos cambian con el idioma. "La app" es la
     // cuarta sección, y dentro el botón del tour es el tercero de su bloque.
-    document.querySelectorAll("header nav button")[3]?.click();
+    document.querySelectorAll("header nav button")[4]?.click();
     setTimeout(() => {
-      // El botón "Tour" de la barra de abajo, buscado por su texto: se llama igual en los
-      // dos idiomas y no se mueve de sitio al añadir o quitar filas de un bloque. Antes se
-      // cogía el tercer botón del bloque "winshotx", y en cuanto ese bloque cambió de
-      // filas el clic empezó a caer en el interruptor de arrancar con Windows: el tour no
-      // se abría y la foto salía de la ventana normal, sin que nada avisara.
-      [...document.querySelectorAll("footer button")]
-        .find((b) => b.textContent.trim() === "Tour")
-        ?.click();
+      [...document.querySelectorAll("[data-scroll-ajustes] button")]
+        .find((b) => ["Empezar", "Start", "开始"].includes(b.textContent.trim()))?.click();
       let n = ${JSON.stringify(Number(tour))};
       const avanzar = () => {
         if (n-- <= 0) return;

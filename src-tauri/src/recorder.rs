@@ -68,6 +68,7 @@ pub struct RecordingTick {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInfo {
+    pub video_codec: crate::encode::mp4::VideoCodec,
     pub id: String,
     pub region: Rect,
     pub fps: u32,
@@ -86,6 +87,7 @@ pub struct SessionInfo {
 impl From<&SessionData> for SessionInfo {
     fn from(data: &SessionData) -> Self {
         Self {
+            video_codec: data.video_codec,
             id: data.id.clone(),
             region: data.region,
             fps: data.fps,
@@ -246,12 +248,14 @@ pub fn start(app: &AppHandle, region: Rect, options: RecordOptions) -> Result<Se
     std::fs::create_dir_all(&dir)?;
 
     let fps = options.fps.clamp(5, 60);
+    let video_codec = state.settings.read().video_codec;
     let origin = monitor_origin(app, region);
     // Grabar UNA ventana es otro camino desde aqui abajo: se le pide a Windows esa ventana
     // y no un trozo de pantalla, asi que lo que pase por delante no sale.
     let ventana = options.window.filter(|h| *h != 0);
 
     let session_seed = SessionData {
+        video_codec,
         id: id.clone(),
         dir: dir.clone(),
         region,
@@ -481,6 +485,7 @@ pub fn start(app: &AppHandle, region: Rect, options: RecordOptions) -> Result<Se
     };
 
     let info = SessionInfo {
+        video_codec,
         id: id.clone(),
         region,
         fps,
@@ -762,6 +767,7 @@ pub(crate) fn peticion_por_defecto(session: &SessionData) -> crate::exporter::Ex
         session_id: session.id.clone(),
         format: if session.format == "gif" { "gif" } else { "mp4" }.into(),
         engine: "native".into(),
+        video_codec: session.video_codec,
         from: 0,
         to: session.frames.len().saturating_sub(1),
         width: session.width,
@@ -852,6 +858,7 @@ pub fn session_from_image(app: &AppHandle, image: &RgbaImage, region: Rect) -> R
     let frames = cache.finish(0, 1)?;
 
     let mut session = SessionData {
+        video_codec: crate::encode::mp4::VideoCodec::H264,
         id: id.clone(),
         dir,
         region,
@@ -876,6 +883,27 @@ pub fn session_from_image(app: &AppHandle, image: &RgbaImage, region: Rect) -> R
     session.persist()?;
     state.sessions.write().insert(id, session.clone());
     Ok(session)
+}
+
+#[cfg(test)]
+mod pruebas_del_codec {
+    use super::*;
+    use crate::encode::mp4::VideoCodec;
+
+    #[test]
+    fn el_codec_del_inicio_sobrevive_y_manda_en_el_editor_y_en_el_guardado() {
+        let antigua = serde_json::json!({
+            "id": "codec", "dir": "sesion", "region": {"x":0,"y":0,"width":640,"height":360},
+            "fps":30, "format":"video", "hasAudio":false, "width":640, "height":360,
+            "mp4Path":null, "frames":[]
+        });
+        let mut session: SessionData = serde_json::from_value(antigua).unwrap();
+        assert_eq!(session.video_codec, VideoCodec::H264);
+        session.video_codec = VideoCodec::Hevc;
+        let releida: SessionData = serde_json::from_str(&serde_json::to_string(&session).unwrap()).unwrap();
+        assert_eq!(SessionInfo::from(&releida).video_codec, VideoCodec::Hevc);
+        assert_eq!(peticion_por_defecto(&releida).video_codec, VideoCodec::Hevc);
+    }
 }
 
 #[cfg(all(test, windows))]

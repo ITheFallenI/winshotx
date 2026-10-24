@@ -11,10 +11,13 @@
 //! a prepararlo al arrancar y quedo mas rapido de verdad, pero el arreglo se llevo por
 //! delante otras cosas (el arranque, y despues un cuelgue entero) y se retiro el 31 de
 //! agosto de 2026. Lo aprendido, para quien lo vuelva a intentar, esta en las trampas 33 y
-//! 34 de `docs/TRAMPAS.md`: una ventana escondida no arranca su interfaz, y nada que toque
-//! una ventana puede hacerse desde otro hilo.
+//! 34 de `docs/TRAMPAS.md`: la interfaz oculta puede cargar, y todo lo que toque ventanas
+//! debe hacerse en el hilo principal. El primer clic espera su medida antes de mostrarla.
 
-use std::time::{Duration, Instant};
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
 
 use parking_lot::Mutex;
 use tauri::{
@@ -36,6 +39,36 @@ const MARGEN: f64 = 8.0;
 /// Donde estaba el icono la ultima vez que se abrio, para volver a colocarlo cuando la
 /// interfaz diga cuanto mide: el menu crece hacia ARRIBA, no hacia abajo.
 static ULTIMO_ANCLAJE: Mutex<Option<(i32, i32)>> = Mutex::new(None);
+
+/// El primer clic espera al contenido y a su medida, sin ensennar un rectangulo vacio.
+#[derive(Default)]
+struct PreparacionMenu {
+    medido: bool,
+    pendiente: Option<(i32, i32)>,
+}
+
+impl PreparacionMenu {
+    fn solicitar(&mut self, anclaje: (i32, i32)) -> bool {
+        if self.medido {
+            return true;
+        }
+        self.pendiente = Some(anclaje);
+        false
+    }
+
+    fn medir(&mut self) -> Option<(i32, i32)> {
+        self.medido = true;
+        self.pendiente.take()
+    }
+}
+
+static PREPARACION: Mutex<PreparacionMenu> = Mutex::new(PreparacionMenu {
+    medido: false,
+    pendiente: None,
+});
+/// Invalida una comprobacion de foco si entretanto se ha cerrado o vuelto a abrir.
+static APERTURA: AtomicU64 = AtomicU64::new(0);
+const COMPROBAR_FOCO_TRAS: Duration = Duration::from_millis(75);
 
 /// Cuando se escondio por perder el foco.
 ///
@@ -94,6 +127,8 @@ fn ventana(app: &AppHandle) -> Result<tauri::WebviewWindow> {
         return Ok(existente);
     }
 
+    *PREPARACION.lock() = PreparacionMenu::default();
+
     let window = WebviewWindowBuilder::new(
         app,
         TRAY_MENU_LABEL,
@@ -109,6 +144,7 @@ fn ventana(app: &AppHandle) -> Result<tauri::WebviewWindow> {
     .minimizable(false)
     .closable(false)
     .shadow(true)
+    .focused(false)
     .visible(false)
     .inner_size(MENU_ANCHO, MENU_ALTO_INICIAL)
     .build()?;
@@ -122,17 +158,42 @@ fn ventana(app: &AppHandle) -> Result<tauri::WebviewWindow> {
     let suyo = app.clone();
     window.on_window_event(move |evento| {
         if let tauri::WindowEvent::Focused(false) = evento {
-            *ESCONDIDO_EN.lock() = Some(Instant::now());
-            esconder(&suyo);
+            comprobar_foco(&suyo);
         }
     });
     Ok(window)
 }
 
 pub fn esconder(app: &AppHandle) {
+    PREPARACION.lock().pendiente = None;
+    APERTURA.fetch_add(1, Ordering::Relaxed);
     if let Some(window) = app.get_webview_window(TRAY_MENU_LABEL) {
         let _ = window.hide();
     }
+}
+
+/// Windows puede entregar una perdida de foco anterior DESPUES de `set_focus`.
+/// Se comprueba el foco actual, y solo en el hilo de ventanas; un evento viejo no cierra
+/// un menu recien abierto ni marca como cierre un aviso de una ventana ya escondida.
+fn comprobar_foco(app: &AppHandle) {
+    let apertura = APERTURA.load(Ordering::Relaxed);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(COMPROBAR_FOCO_TRAS);
+        let dentro = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if APERTURA.load(Ordering::Relaxed) != apertura {
+                return;
+            }
+            let Some(window) = dentro.get_webview_window(TRAY_MENU_LABEL) else {
+                return;
+            };
+            if window.is_visible().unwrap_or(false) && !window.is_focused().unwrap_or(true) {
+                *ESCONDIDO_EN.lock() = Some(Instant::now());
+                esconder(&dentro);
+            }
+        });
+    });
 }
 
 /// Que el menu no salga dentro de lo que se esta grabando.
@@ -163,6 +224,9 @@ fn esta_a_la_vista(app: &AppHandle) -> bool {
 /// Lo coloca sobre el icono de la bandeja y lo ensenna.
 fn mostrar(app: &AppHandle, anclaje: (i32, i32)) -> Result<()> {
     let window = ventana(app)?;
+    if !PREPARACION.lock().solicitar(anclaje) {
+        return Ok(());
+    }
     let escala = window.scale_factor().unwrap_or(1.0);
     let medida = window
         .outer_size()
@@ -185,6 +249,7 @@ fn mostrar(app: &AppHandle, anclaje: (i32, i32)) -> Result<()> {
         &window,
         app.state::<crate::state::AppState>().is_recording(),
     );
+    APERTURA.fetch_add(1, Ordering::Relaxed);
     window.show()?;
     window.set_focus()?;
     // La ventana se reutiliza, asi que hay que decirle que vuelva a leer el estado: el
@@ -195,7 +260,8 @@ fn mostrar(app: &AppHandle, anclaje: (i32, i32)) -> Result<()> {
 
 /// Abre el menu, o lo cierra si ya estaba abierto.
 pub fn alternar(app: &AppHandle, anclaje: (i32, i32)) {
-    if esta_a_la_vista(app) {
+    let pendiente = PREPARACION.lock().pendiente.is_some();
+    if pendiente || esta_a_la_vista(app) {
         esconder(app);
         return;
     }
@@ -219,6 +285,9 @@ pub fn alternar(app: &AppHandle, anclaje: (i32, i32)) {
 /// su borde de ABAJO, asi que si solo cambiara el alto, crecería hacia abajo y se metería
 /// debajo de la barra de tareas.
 pub fn redimensionar(app: &AppHandle, alto: f64) {
+    if !alto.is_finite() || alto <= 0.0 {
+        return;
+    }
     let Some(window) = app.get_webview_window(TRAY_MENU_LABEL) else {
         return;
     };
@@ -236,11 +305,37 @@ pub fn redimensionar(app: &AppHandle, alto: f64) {
         );
         let _ = window.set_position(PhysicalPosition::new(x, y));
     }
+
+    let pendiente = PREPARACION.lock().medir();
+    if let Some(anclaje) = pendiente {
+        if let Err(error) = mostrar(app, anclaje) {
+            eprintln!("[bandeja] no se ha podido abrir el menu preparado: {error}");
+            let _ = crate::windows_mgr::show_settings(app);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn el_primer_clic_espera_a_que_el_menu_este_medido() {
+        let mut preparacion = PreparacionMenu::default();
+        assert!(!preparacion.solicitar((1700, 1050)));
+        assert_eq!(preparacion.medir(), Some((1700, 1050)));
+        assert_eq!(preparacion.medir(), None, "no se abre dos veces al medir otra vez");
+        assert!(preparacion.solicitar((1700, 1050)));
+    }
+
+    #[test]
+    fn una_carga_tardia_no_reabre_un_menu_cancelado() {
+        let mut preparacion = PreparacionMenu::default();
+        assert!(!preparacion.solicitar((1700, 1050)));
+        preparacion.pendiente = None;
+        assert_eq!(preparacion.medir(), None);
+        assert!(preparacion.solicitar((1700, 1050)));
+    }
 
     fn monitor(x: i32, y: i32, ancho: i32, alto: i32) -> MonitorSitio {
         MonitorSitio {

@@ -76,18 +76,22 @@ pub fn mp4_from_video(
     width: u32,
     height: u32,
     quality: u8,
+    codec: super::mp4::VideoCodec,
 ) -> Result<()> {
     // CRF invertido: mas calidad pedida, menos compresion con perdida.
     let crf = 34 - (quality.clamp(10, 100) as u32 * 20) / 100;
     let filter = format!("fps={fps},scale={width}:{height}:flags=lanczos");
-    run(&[
+    let mut args = vec![
         "-y".into(),
         "-i".into(),
         source.to_string_lossy().to_string(),
         "-vf".into(),
         filter,
         "-c:v".into(),
-        "libx264".into(),
+        match codec {
+            super::mp4::VideoCodec::H264 => "libx264".into(),
+            super::mp4::VideoCodec::Hevc => "libx265".into(),
+        },
         "-preset".into(),
         "medium".into(),
         "-crf".into(),
@@ -96,6 +100,10 @@ pub fn mp4_from_video(
         "yuv420p".into(),
         "-movflags".into(),
         "+faststart".into(),
-        destination.to_string_lossy().to_string(),
-    ])
+    ];
+    if codec == super::mp4::VideoCodec::Hevc {
+        args.extend(["-tag:v".into(), "hvc1".into()]);
+    }
+    args.push(destination.to_string_lossy().to_string());
+    run(&args)
 }

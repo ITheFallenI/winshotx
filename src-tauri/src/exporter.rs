@@ -19,6 +19,8 @@ pub struct ExportRequest {
     pub session_id: String,
     pub format: String,
     pub engine: String,
+    #[serde(default)]
+    pub video_codec: mp4::VideoCodec,
     pub from: usize,
     pub to: usize,
     pub width: u32,
@@ -308,7 +310,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
             let path = destination_path(app, &request, "gif")?;
             if request.engine == "ffmpeg" && ffmpeg::available() {
                 let temporary = session.dir.join("export-source.mp4");
-                encode_mp4(&session, &indices, &delays, &temporary, &request, &emit)?;
+                encode_mp4(&session, &indices, &delays, &temporary, &request, mp4::VideoCodec::H264, &emit)?;
                 emit("encoding", 0, 1);
                 ffmpeg::gif_from_video(&temporary, &path, request.fps, ancho_final, request.quality)?;
                 let _ = std::fs::remove_file(&temporary);
@@ -319,7 +321,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
                 // parches por fotograma en vez de uno. Y por delante, en otro hilo, para
                 // que leer el siguiente no espere a vestir y codificar este. Ver
                 // `LectorPorDelante`.
-                let mut lector = record::LectorPorDelante::nuevo(session.clone(), indices.clone());
+                let mut lector = record::LectorPorDelante::nuevo(session.clone(), gif::read_order(&indices));
                 let mut loader = |index: usize| {
                     let ms = session.frames.get(index).map(|f| f.timestamp_ms).unwrap_or(0);
                     let recortes = recortes_de!(ms);
@@ -365,7 +367,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
             let path = destination_path(app, &request, "mp4")?;
             if request.engine == "ffmpeg" && ffmpeg::available() {
                 let temporary = session.dir.join("export-source.mp4");
-                encode_mp4(&session, &indices, &delays, &temporary, &request, &emit)?;
+                encode_mp4(&session, &indices, &delays, &temporary, &request, mp4::VideoCodec::H264, &emit)?;
                 emit("encoding", 0, 1);
                 ffmpeg::mp4_from_video(
                     &temporary,
@@ -374,16 +376,18 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
                     ancho_final,
                     alto_final,
                     request.quality,
+                    request.video_codec,
                 )?;
                 let _ = std::fs::remove_file(&temporary);
             } else {
-                encode_mp4(&session, &indices, &delays, &path, &request, &emit)?;
+                encode_mp4(&session, &indices, &delays, &path, &request, request.video_codec, &emit)?;
             }
             path
         }
         other => return Err(AppError::Msg(format!("formato desconocido: {other}"))),
     };
 
+    crate::last_saved::remember(app, &path);
     emit("done", 1, 1);
 
     let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
@@ -713,6 +717,7 @@ fn encode_mp4<F>(
     delays: &[u32],
     path: &Path,
     request: &ExportRequest,
+    codec: mp4::VideoCodec,
     emit: &F,
 ) -> Result<()>
 where
@@ -752,7 +757,7 @@ where
             )
         })
     };
-    mp4::encode(
+    mp4::encode_with_codec(
         indices,
         delays,
         &mut loader,
@@ -763,6 +768,7 @@ where
             fps: request.fps.max(1),
             quality: request.quality,
         },
+        codec,
         // El interruptor del editor manda: alguien puede querer el vídeo mudo. Y a
         // velocidad distinta de la real no hay sonido que valga: acelerar la pista sin
         // tocar el tono es otro problema entero, y dejarla tal cual la despegaria de la
@@ -910,6 +916,7 @@ mod tests {
             })
             .collect();
         SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "test".into(),
             dir: PathBuf::from("."),
             region: Rect {
@@ -1168,6 +1175,7 @@ mod el_orden_de_exportar {
             session_id: "s".into(),
             format: "png".into(),
             engine: "native".into(),
+            video_codec: mp4::VideoCodec::H264,
             from: 0,
             to: 0,
             width: 200,
@@ -1253,6 +1261,9 @@ mod el_orden_de_exportar {
     #[test]
     fn lo_que_se_copia_lleva_las_marcas_dibujadas() {
         let marca = anotacion::Anotacion {
+            points: Vec::new(),
+            stroke_width: None,
+            font_size: None,
             kind: "box".into(),
             x1: 0.25,
             y1: 0.25,
@@ -1328,6 +1339,9 @@ mod el_orden_de_exportar {
         // 0,5 a 0,625. Dentro del recorte eso es su cuarto izquierdo: de 0 a 0,25. Sin
         // reencuadrar, ese 0,5 caeria en el centro del trozo.
         let marca = anotacion::Anotacion {
+            points: Vec::new(),
+            stroke_width: None,
+            font_size: None,
             kind: "box".into(),
             x1: 0.5,
             y1: 0.1,
@@ -1404,6 +1418,9 @@ mod el_orden_de_exportar {
         // La camara devuelve la imagen entera mientras no hay zoom, y eso pasa por aqui en
         // cada fotograma. Si contara como recorte, volveria a medir las marcas sin motivo.
         let marca = anotacion::Anotacion {
+            points: Vec::new(),
+            stroke_width: None,
+            font_size: None,
             kind: "box".into(),
             x1: 0.5,
             y1: 0.1,
@@ -1452,6 +1469,7 @@ mod la_camara_del_exportador {
 
     fn sesion_con_clics(clics: Vec<zoom::Clic>) -> SessionData {
         SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "z".into(),
             dir: PathBuf::from("."),
             region: Rect {
@@ -1483,6 +1501,7 @@ mod la_camara_del_exportador {
             session_id: "z".into(),
             format: "mp4".into(),
             engine: "native".into(),
+            video_codec: mp4::VideoCodec::H264,
             from: 0,
             to: 0,
             width: 400,
@@ -1702,6 +1721,7 @@ mod medir {
         }
         let frames = cache.finish(cuantos as u64 * 33, 30).unwrap();
         let session = SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "bench".into(),
             dir: dir.clone(),
             region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },

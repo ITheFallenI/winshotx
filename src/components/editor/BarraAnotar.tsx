@@ -2,6 +2,12 @@ import {
   ArrowUpRight,
   Circle,
   Highlighter,
+  Pencil,
+  MousePointer2,
+  Redo2,
+  Trash2,
+  FolderOpen,
+  ClipboardPaste,
   ShieldCheck,
   Square,
   TextSelect,
@@ -9,11 +15,11 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { COLORES, type Herramienta } from "../../lib/anotaciones";
+import { COLORES, GROSORES_PINCEL, type Herramienta, type Anotacion } from "../../lib/anotaciones";
 import { useT } from "../../lib/i18n";
 
 /**
- * Las seis herramientas de anotar, el color y deshacer.
+ * Las herramientas de anotar, el color, el grosor del pincel y deshacer.
  *
  * Va debajo de la vista previa, junto a los controles de reproducción, y no en una columna
  * aparte: una barra lateral más se lleva doscientos píxeles de ancho, que es justo lo que
@@ -28,6 +34,8 @@ interface Props {
   onElegir: (herramienta: Herramienta | null) => void;
   color: string;
   onColor: (color: string) => void;
+  grosorPincel: number;
+  onGrosorPincel: (grosor: number) => void;
   texto: string;
   onTexto: (texto: string) => void;
   cuantas: number;
@@ -39,6 +47,18 @@ interface Props {
   onCopiarTexto: () => void;
   /** Mientras el lector de texto trabaja, que son unas decimas sobre una captura grande. */
   buscandoDatos: boolean;
+  seleccionada: Anotacion | null;
+  onBorrarSeleccion: () => void;
+  onRehacer: () => void;
+  puedeRehacer: boolean;
+  puedeDeshacer: boolean;
+  fontSize: number;
+  onFontSize: (size: number) => void;
+  imageWidth: number;
+  onAbrir: () => void;
+  onPegar: () => void;
+  onStartEdit: () => void;
+  onEndEdit: () => void;
 }
 
 const HERRAMIENTAS: {
@@ -47,12 +67,14 @@ const HERRAMIENTAS: {
   etiqueta: string;
   tecla: string;
 }[] = [
+  { id: "select", icono: MousePointer2, etiqueta: "Seleccionar anotación", tecla: "0" },
   { id: "arrow", icono: ArrowUpRight, etiqueta: "Flecha", tecla: "1" },
   { id: "box", icono: Square, etiqueta: "Rectángulo", tecla: "2" },
   { id: "text", icono: Type, etiqueta: "Texto", tecla: "3" },
   { id: "highlight", icono: Highlighter, etiqueta: "Resaltar", tecla: "4" },
   // El paso numerado va con los que señalan: es la marca de «primero esto, luego esto».
   { id: "step", icono: Circle, etiqueta: "Paso numerado", tecla: "5" },
+  { id: "brush", icono: Pencil, etiqueta: "Pincel a mano alzada", tecla: "7" },
 ];
 
 export function BarraAnotar({
@@ -60,6 +82,8 @@ export function BarraAnotar({
   onElegir,
   color,
   onColor,
+  grosorPincel,
+  onGrosorPincel,
   texto,
   onTexto,
   cuantas,
@@ -68,10 +92,14 @@ export function BarraAnotar({
   onTaparDatos,
   onCopiarTexto,
   buscandoDatos,
+  seleccionada, onBorrarSeleccion, onRehacer, puedeRehacer, puedeDeshacer, fontSize, onFontSize, imageWidth,
+  onAbrir, onPegar, onStartEdit, onEndEdit,
 }: Props) {
   const t = useT();
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-t border-white/8 bg-black/25 px-3 py-2">
+      <Boton icono={FolderOpen} etiqueta={t("Abrir imagen (Ctrl+O)")} activa={false} onClick={onAbrir} />
+      <Boton icono={ClipboardPaste} etiqueta={t("Pegar imagen (Ctrl+V)")} activa={false} onClick={onPegar} />
       {HERRAMIENTAS.map((h) => (
         <Boton
           key={h.id}
@@ -114,14 +142,43 @@ export function BarraAnotar({
         </span>
       )}
 
+      {(activa === "brush" || seleccionada?.kind === "brush") && (
+        <span role="group" aria-label={t("Grosor del pincel")} className="flex gap-0.5">
+          {GROSORES_PINCEL.map((grosor) => (
+            <button
+              key={grosor.value}
+              type="button"
+              aria-pressed={grosorPincel === grosor.value}
+              onClick={() => onGrosorPincel(grosor.value)}
+              className={`rounded-md px-1.5 py-1 text-[11px] ${
+                grosorPincel === grosor.value ? "bg-blue-500 text-white" : "text-neutral-400 hover:bg-white/10"
+              }`}
+            >
+              {t(grosor.label)}
+            </button>
+          ))}
+        </span>
+      )}
+
       {/* El campo solo aparece con el texto elegido: es lo único que se escribe. */}
-      {activa === "text" && (
+      {(activa === "text" || seleccionada?.kind === "text") && (
+        <>
         <input
           value={texto}
+          onFocus={onStartEdit} onBlur={onEndEdit}
           onChange={(e) => onTexto(e.target.value)}
           placeholder={t("Escribe y pulsa en la imagen")}
           className="h-7 min-w-[190px] flex-1 rounded-md border border-white/10 bg-black/40 px-2 text-[12px] text-neutral-200 placeholder:text-neutral-600 focus:border-blue-500/70 focus:outline-none"
         />
+        <label className="flex items-center gap-1 text-xs text-neutral-300">
+          {t("Tamaño del texto")}
+          <input type="number" min={8} max={240} aria-label={t("Tamaño del texto")}
+            onFocus={onStartEdit} onBlur={onEndEdit}
+            value={Math.round(fontSize * imageWidth)}
+            onChange={e => { const n = Number(e.target.value); if (n >= 8 && n <= 240) onFontSize(n / imageWidth); }}
+            className="w-14 rounded bg-black/40 px-1 py-1 text-white" />
+        </label>
+        </>
       )}
 
       <span className="ml-auto flex items-center gap-1">
@@ -156,8 +213,11 @@ export function BarraAnotar({
           etiqueta={t("Deshacer la última (Ctrl+Z)")}
           activa={false}
           onClick={onDeshacer}
-          apagada={cuantas === 0}
+          apagada={!puedeDeshacer}
         />
+        <Boton icono={Redo2} etiqueta={t("Rehacer (Ctrl+Y)")} activa={false} onClick={onRehacer} apagada={!puedeRehacer} />
+        <Boton icono={Trash2} etiqueta={t("Eliminar anotación seleccionada")} activa={false}
+          onClick={onBorrarSeleccion} apagada={!seleccionada} />
         <Boton
           icono={X}
           etiqueta={t("Quitar todas")}

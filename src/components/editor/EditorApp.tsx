@@ -14,6 +14,7 @@ import {
   copiaTexto,
   sessionStudio,
   tapaDatos,
+  openImage,
 } from "../../lib/ipc";
 import { clamp, formatTimecode } from "../../lib/format";
 import {
@@ -37,6 +38,7 @@ import { medida as medidaDelRecorte, type Recorte } from "../../lib/recorte";
 import { contener } from "../../lib/contener";
 import { ESTUDIO_APAGADO, type Estudio } from "../../lib/estudio";
 import { useT } from "../../lib/i18n";
+import { useAnnotationHistory } from "../../lib/annotationHistory";
 
 export function EditorApp({ sessionId }: { sessionId: string }) {
   const t = useT();
@@ -73,13 +75,51 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
   /** La camara del zoom, una muestra por fotograma, con el zoom y el recorte puestos. */
   const [camara, setCamara] = useState<MuestraCamara[]>([]);
   /** Lo dibujado encima, en el orden en que se hizo. */
-  const [anotaciones, setAnotaciones] = useState<Anotacion[]>([]);
+  const { annotations: anotaciones, setAnnotations: setAnotaciones, undo, redo, canUndo, canRedo, beginEdit, endEdit } = useAnnotationHistory();
+  const [seleccionada, setSeleccionada] = useState<number | null>(null);
+  const elegida = seleccionada === null ? null : anotaciones[seleccionada] ?? null;
+  const [fontSize, setFontSize] = useState(1 / 42);
   const [herramienta, setHerramienta] = useState<Herramienta | null>(null);
   const [colorMarca, setColorMarca] = useState(COLORES[0]);
+  const [grosorPincel, setGrosorPincel] = useState(0.006);
   const [textoMarca, setTextoMarca] = useState("");
+  const cambiarMarca = useCallback((index: number, marca: Anotacion) => {
+    setAnotaciones(previas => previas.map((a, i) => i === index ? marca : a));
+    if (marca.kind === "text") setFontSize(marca.fontSize ?? 1 / 42);
+  }, [setAnotaciones]);
+  const borrarSeleccion = useCallback(() => {
+    if (seleccionada === null) return;
+    setAnotaciones(previas => previas.filter((_, i) => i !== seleccionada));
+    setSeleccionada(null);
+  }, [seleccionada, setAnotaciones]);
+  const seleccionar = (index: number | null) => {
+    setSeleccionada(index);
+    const a = index === null ? null : anotaciones[index];
+    if (a) {
+      setColorMarca(a.color);
+      if (a.kind === "text") { setTextoMarca(a.text); setFontSize(a.fontSize ?? 1 / 42); }
+      if (a.kind === "brush") setGrosorPincel(a.strokeWidth ?? 0.006);
+    }
+  };
   /** El trozo que se exporta, de 0 a 1. Sin marco puesto sale la captura entera. */
   const [recorte, setRecorte] = useState<Recorte | null>(null);
   const [recortando, setRecortando] = useState(false);
+  const [savedSignature, setSavedSignature] = useState(JSON.stringify({ annotations: [], crop: null }));
+  const dirty = savedSignature !== JSON.stringify({ annotations: anotaciones, crop: recorte });
+  const [confirmClose, setConfirmClose] = useState(false);
+  const importing = useRef(false);
+  const importar = useCallback(async (path: string | null = null, clipboard = false) => {
+    if (importing.current) return;
+    importing.current = true;
+    try { await openImage(path, clipboard); } catch (error) { setAviso(String(error)); }
+    finally { importing.current = false; }
+  }, []);
+  useEffect(() => {
+    const unlisten = listen<{ paths: string[] }>("tauri://drag-drop", event => {
+      if (event.payload.paths?.[0]) void importar(event.payload.paths[0]);
+    }, { target: getCurrentWindow().label });
+    return () => { void unlisten.then(fn => fn()); };
+  }, [importar]);
   /**
    * El hueco donde vive la vista previa, medido de verdad.
    *
@@ -288,9 +328,9 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
     if (!session) return;
     const medida = `${session.region.width} × ${session.region.height}`;
     void getCurrentWindow().setTitle(
-      `winshotx · ${t("Editor")} · ${medida} · ${formatTimecode(keptMs)}`,
+      `${dirty ? "* " : ""}winshotx · ${t("Editor")} · ${medida} · ${formatTimecode(keptMs)}`,
     );
-  }, [session, keptMs, t]);
+  }, [session, keptMs, t, dirty]);
 
   /**
    * Cerrar el editor tira la sesion, que son los fotogramas en crudo del disco.
@@ -299,10 +339,11 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
    * el marco de Windows: su X, Alt+F4 y el menu de la barra de tareas pasan todos por
    * aqui, y colgarlo de un boton dibujado dejaria la carpeta llena en los otros tres.
    */
-  const cerrar = useCallback(async () => {
+  const cerrar = useCallback(async (discard = false) => {
+    if (dirty && !discard) { setConfirmClose(true); return; }
     if (session) await discardSession(session.id);
     await getCurrentWindow().destroy();
-  }, [session]);
+  }, [session, dirty]);
 
   useEffect(() => {
     const sinOir = getCurrentWindow().onCloseRequested(async (evento) => {
@@ -316,9 +357,12 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === "INPUT") return;
+      if ((e.target as HTMLElement)?.closest?.("input,textarea,select,[contenteditable=true]")) return;
       const key = e.key.toLowerCase();
-      if (e.key === " ") {
+      if (confirmClose) { if (e.key === "Escape") setConfirmClose(false); return; }
+      if ((e.ctrlKey || e.metaKey) && (key === "o" || key === "v")) {
+        e.preventDefault(); void importar(null, key === "v");
+      } else if (e.key === " ") {
         e.preventDefault();
         togglePlay();
       } else if (key === "i") {
@@ -327,13 +371,21 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
         // Deshacer la última marca. Va antes que las teclas sueltas para que `Ctrl+Z` no
         // caiga en ninguna otra rama.
         e.preventDefault();
-        setAnotaciones((previas) => previas.slice(0, -1));
-      } else if (key >= "1" && key <= "6" && !e.ctrlKey) {
-        // Las seis herramientas de anotar, en el orden en que están en la barra.
-        const cual = (["arrow", "box", "text", "highlight", "step", "blur"] as Herramienta[])[
+        if (e.shiftKey) redo(); else undo();
+        setSeleccionada(null);
+      } else if (key === "y" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault(); redo(); setSeleccionada(null);
+      } else if ((key === "delete" || key === "backspace") && elegida) {
+        e.preventDefault(); borrarSeleccion();
+      } else if (key === "0" && !e.ctrlKey && !e.metaKey) {
+        setHerramienta("select"); setRecortando(false);
+      } else if (key >= "1" && key <= "7" && !e.ctrlKey && !e.metaKey) {
+        // Las herramientas de anotar, conservando los atajos existentes.
+        const cual = (["arrow", "box", "text", "highlight", "step", "blur", "brush"] as Herramienta[])[
           Number(key) - 1
         ];
         setHerramienta((puesta) => (puesta === cual ? null : cual));
+        setSeleccionada(null);
       } else if (key === "c" && !e.ctrlKey && !e.metaKey) {
         // La otra mitad de recortar: A y B recortan el tiempo, esto recorta el espacio.
         setRecortando((puesto) => !puesto);
@@ -348,7 +400,8 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
         // Escape sale primero de lo que se este haciendo. Cerrar el editor tira los
         // fotogramas, asi que no puede ser lo que pase al pulsar Escape sin querer
         // mientras se coloca un marco de recorte.
-        if (recortando) setRecortando(false);
+        if (seleccionada !== null) setSeleccionada(null);
+        else if (recortando) setRecortando(false);
         else if (herramienta) setHerramienta(null);
         else void cerrar();
       }
@@ -358,7 +411,8 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
     // `recortando` y `herramienta` entran aqui porque Escape los mira: sin ellos el
   // manejador se queda con la foto vieja del estado y cierra el editor, tirando los
   // fotogramas, en vez de soltar lo que se estuviera haciendo.
-  }, [currentIndex, frames.length, togglePlay, scrub, markIn, markOut, recortando, herramienta, cerrar]);
+  }, [currentIndex, frames.length, togglePlay, scrub, markIn, markOut, recortando, herramienta, cerrar,
+    undo, redo, seleccionada, elegida, borrarSeleccion, importar, confirmClose]);
 
   const videoUrl = useMemo(
     () => (session?.mp4Path ? convertFileSrc(session.mp4Path) : null),
@@ -553,6 +607,10 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
                 />
               )}
               <CapaAnotaciones
+                seleccionada={seleccionada} onSeleccionar={seleccionar} onCambiar={cambiarMarca}
+                fontSize={fontSize} aspect={session.region.width / session.region.height}
+                grosorPincel={grosorPincel}
+                anchoVista={cajaDeLaVista.width}
                 herramienta={herramienta}
                 // El resaltado es un marcador, y un marcador es amarillo: no se elige.
                 color={herramienta === "highlight" ? COLOR_RESALTADO : colorMarca}
@@ -683,15 +741,23 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
           </div>
 
           <BarraAnotar
+            onAbrir={() => void importar()} onPegar={() => void importar(null, true)}
+            onStartEdit={beginEdit} onEndEdit={endEdit}
             activa={herramienta}
-            onElegir={setHerramienta}
+            onElegir={(tool) => { setHerramienta(tool); setSeleccionada(null); setRecortando(false); }}
             color={colorMarca}
-            onColor={setColorMarca}
+              onColor={(color) => { setColorMarca(color); if (elegida && seleccionada !== null) cambiarMarca(seleccionada, { ...elegida, color }); }}
+            grosorPincel={grosorPincel}
+              onGrosorPincel={(strokeWidth) => { setGrosorPincel(strokeWidth); if (elegida?.kind === "brush" && seleccionada !== null) cambiarMarca(seleccionada, { ...elegida, strokeWidth }); }}
             texto={textoMarca}
-            onTexto={setTextoMarca}
+              onTexto={(text) => { setTextoMarca(text); if (elegida?.kind === "text" && seleccionada !== null) cambiarMarca(seleccionada, { ...elegida, text }); }}
             cuantas={anotaciones.length}
-            onDeshacer={() => setAnotaciones((previas) => previas.slice(0, -1))}
-            onBorrarTodo={() => setAnotaciones([])}
+              onDeshacer={() => { undo(); setSeleccionada(null); }}
+              onRehacer={() => { redo(); setSeleccionada(null); }} puedeRehacer={canRedo} puedeDeshacer={canUndo}
+              seleccionada={elegida} onBorrarSeleccion={borrarSeleccion}
+              fontSize={fontSize} imageWidth={session.region.width}
+              onFontSize={(size) => { setFontSize(size); if (elegida?.kind === "text" && seleccionada !== null) cambiarMarca(seleccionada, { ...elegida, fontSize: size }); }}
+            onBorrarTodo={() => { setAnotaciones([]); setSeleccionada(null); }}
             onTaparDatos={() => void taparDatos()}
             onCopiarTexto={() => void copiarTexto()}
             buscandoDatos={buscandoDatos}
@@ -711,6 +777,7 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
         </main>
 
         <ExportPanel
+          onSaved={setSavedSignature}
           recorte={recorte}
           anotaciones={anotaciones}
           session={session}
@@ -730,6 +797,16 @@ export function EditorApp({ sessionId }: { sessionId: string }) {
           }}
         />
       </div>
+      {confirmClose && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div role="alertdialog" aria-modal="true" aria-labelledby="discard-title" className="max-w-sm rounded-xl border border-white/15 bg-neutral-900 p-6 text-white shadow-xl">
+          <h2 id="discard-title" className="font-semibold">{t("¿Descartar los cambios sin guardar?")}</h2>
+          <p className="mt-2 text-sm text-neutral-300">{t("Guarda la imagen o el vídeo para conservar tus cambios.")}</p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button autoFocus onClick={() => setConfirmClose(false)} className="rounded-md bg-white/10 px-3 py-2 text-sm">{t("Seguir editando")}</button>
+            <button onClick={() => void cerrar(true)} className="rounded-md bg-red-600 px-3 py-2 text-sm">{t("Descartar cambios")}</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }

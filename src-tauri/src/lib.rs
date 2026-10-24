@@ -1,4 +1,5 @@
 pub mod archivos;
+mod atajos_admin;
 pub mod capture;
 pub(crate) mod commands;
 pub mod crono;
@@ -12,6 +13,9 @@ pub mod record;
 mod recorder;
 mod replay;
 mod tray_menu;
+mod media_import;
+mod gallery;
+mod last_saved;
 mod settings;
 pub mod sensibles;
 mod state;
@@ -35,6 +39,8 @@ pub const EVENT_SETTINGS_SHOWN: &str = "winshotx://settings-shown";
 /// a una ventana que YA estaba montada que hay una captura nueva que cargar, porque no va
 /// a recibir un remontaje que dispare su arranque solo.
 pub const EVENT_OVERLAY_SHOW: &str = "winshotx://overlay-show";
+/// El overlay se ha aparcado: que suelte la pantalla congelada, que ya no se ve.
+pub const EVENT_OVERLAY_HIDE: &str = "winshotx://overlay-hide";
 
 /// Cuantos segundos le quedan al temporizador. Lo recibe la ventanita de la cuenta atras,
 /// que a partir de ahi baja sola de segundo en segundo: Rust solo dice el numero de
@@ -99,6 +105,11 @@ fn purge_old_sessions(root: &std::path::Path) {
 }
 
 pub fn run() {
+    // El ayudante de administrador y su instalador son este mismo ejecutable con otro
+    // argumento: hacen lo suyo y se van sin levantar ni Tauri ni WebView2.
+    if atajos_admin::atender_argumentos() {
+        return;
+    }
     // Antes que nada, y antes de crear una sola ventana: sin WebView2 la ventana se abriria
     // igual y dentro saldria la pagina de error del navegador, que no dice ni que ha pasado
     // ni que hacer. Es por lo que la Microsoft Store rechazo el envio el 1 de septiembre de
@@ -165,6 +176,7 @@ pub fn run() {
             purge_replay(&temp_root);
 
             app.manage(AppState::new(config.clone(), temp_root, recien_actualizado));
+            app.manage(last_saved::LatestSave::load(handle.path().app_config_dir()?.join("latest-save-folder.json")));
 
             // Si el usuario nos dio la tecla Impr Pant hay que comprobarlo en cada
             // arranque: una actualizacion de Windows o un paseo por Configuracion se la
@@ -187,6 +199,7 @@ pub fn run() {
                 }
             }
 
+            atajos_admin::arrancar_buzon(&handle);
             hotkeys::register(&handle, &config);
             tray::build(&handle)?;
 
@@ -223,6 +236,9 @@ pub fn run() {
                 || std::env::args().any(|arg| arg == "--settings")
             {
                 windows_mgr::show_settings(&handle)?;
+            } else if let Some(ventana) = handle.get_webview_window("main") {
+                // Arranca escondida en la bandeja: a dieta hasta que alguien la abra.
+                platform::webview::memoria_baja(&ventana, true);
             }
             Ok(())
         })
@@ -232,10 +248,24 @@ pub fn run() {
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
+                    // Escondida puede pasar dias en la bandeja: que el navegador suelte
+                    // lo que pueda mientras tanto. Ver `platform::webview::memoria_baja`.
+                    if let Some(ventana) = window.app_handle().get_webview_window("main") {
+                        platform::webview::memoria_baja(&ventana, true);
+                    }
                 }
             }
         })
         .invoke_handler(tauri::generate_handler![
+            media_import::open_image,
+            gallery::open_gallery,
+            gallery::take_gallery_request,
+            gallery::gallery_list,
+            gallery::gallery_thumbnail,
+            gallery::gallery_action,
+            gallery::gallery_manage,
+            gallery::gallery_choose_images,
+            gallery::save_comparison,
             commands::overlay_bootstrap,
             commands::freeze_bytes,
             commands::freeze_png,
@@ -283,6 +313,7 @@ pub fn run() {
             commands::replay_save,
             commands::print_screen_state,
             commands::use_print_screen,
+            commands::use_admin_shortcuts,
             commands::use_win_shift_s,
             commands::restart_shell,
             commands::open_folder,

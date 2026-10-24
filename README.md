@@ -153,9 +153,52 @@ In the editor: `space` plays, `I` and `O` mark the start and end of the trim, `C
 where to save it first, and `Esc` closes —
 letting go of the crop frame or the drawing tool first, since closing throws the frames away.
 
-In the editor, to annotate: `1` arrow, `2` box, `3` text, `4` highlight, `5` numbered step and
-`6` hide details. `Ctrl+Z` undoes the last one. Steps number themselves, so adding one in the
+Saved captures are grouped by local date inside your shots folder, for example
+`Pictures/winshotx/2026-10-22/Images/`. Each day separates **Images**, **Videos** and **GIFs**;
+folders are created automatically as needed. Gallery and the tray's recent shots also
+include older files saved directly in the shots folder or date folder. Existing
+files stay where they are, and **Save as** still lets you choose the exact location.
+
+Before recording, open **Settings > Record > Video codec** and choose **H.264** for
+compatibility or **H.265 (HEVC)** for smaller files. The choice is remembered and follows
+each recording into its saved video and the editor, where it can still be changed.
+HEVC uses the encoder available through Windows; if it is unavailable, choose H.264.
+Recording previews keep using H.264. No extra codec package is bundled with winshotx.
+Shortcut fields can be cleared with their remove button, or with Delete/Backspace while
+assigning a shortcut. An unassigned shortcut shows a warning and is released by Windows.
+
+In the editor, to annotate: `1` arrow, `2` box, `3` text, `4` highlight, `5` numbered step,
+`6` hide details and `7` freehand brush. The brush uses the selected colour and offers thin,
+medium and thick strokes. Each stroke is one undo step and is included in saved images and
+videos. `Ctrl+Z` undoes the last mark. Steps number themselves, so adding one in the
 middle does not leave two threes in the same picture.
+
+Press **0** or choose **Select annotation** to select and move existing marks. Shapes,
+text and brush strokes have resize handles. Change their colour, edit selected text and
+its size, or press Delete to remove the selected mark. **Ctrl+Y / Ctrl+Shift+Z** redoes an
+edit. Closing with unsaved annotation/crop changes asks before discarding them.
+
+**Open image** is available in the tray and the gear Settings tab. In the editor, **Ctrl+O**
+opens a PNG/JPEG/BMP, **Ctrl+V** imports an image from the clipboard, and dropping an image
+file opens it in a separate editor. The original image stays intact.
+
+Open the **Gallery** tab or **Capture gallery** from the tray to browse saved screenshots,
+GIFs and MP4s by day. Search filenames, filter dates/types, preview, copy, open, rename or
+move a file to the Recycle Bin. Images can be reopened in the editor. Saved videos can be
+previewed or opened in the default player; reimporting them into the frame editor is pending.
+Image previews support **Ctrl + mouse wheel** to zoom, dragging to pan, **Fit** and **100%**.
+Only nearby thumbnails load, with at most two decodes in flight; videos load only when opened.
+
+In the gear **Settings** tab, **Tray icon > Left click** chooses between opening the latest
+save folder (the default), capture, record, Gallery, Settings, or the captures root folder.
+The last save location includes custom **Save As** destinations and is remembered after
+restarting. Before any save history is available, it uses the most recent existing capture
+or the captures root folder. Right-click opens the tray menu.
+
+Select two gallery images and choose **Compare selected**, or choose **Compare files**.
+Use the reveal divider or difference view, adjust noise tolerance and zoom, and save a
+side-by-side or difference PNG. Comparison keeps the source images at their original
+pixel scale and reports different dimensions.
 
 On a pinned shot: `Ctrl+C` copies it, `Ctrl+S` saves it to the shots folder, `T` copies its text
 and `Esc` closes it.

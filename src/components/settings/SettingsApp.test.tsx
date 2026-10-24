@@ -31,6 +31,8 @@ const PARADO: ReplayStatus = {
 };
 
 const AJUSTES: Settings = {
+  trayClickAction: "latestFolder",
+  videoCodec: "h264",
   captureShortcut: "Ctrl+Shift+2",
   editShortcut: "Super+Shift+KeyL",
   theme: "sistema",
@@ -62,6 +64,7 @@ const AJUSTES: Settings = {
   captureFlow: "toolbar",
   printScreenCapture: false,
   takeWinShiftS: false,
+  adminShortcuts: false,
   onboarded: true,
   snippingKeyRestore: null,
   disabledHotkeysRestore: null,
@@ -95,7 +98,37 @@ async function abrirAjustes(
 
 beforeEach(() => aplicarIdioma("es"));
 
+describe("el codec se elige antes de grabar", () => {
+  it("guarda H.265 desde Grabar y conserva la eleccion al volver a abrir", async () => {
+    aplicarIdioma("en");
+    await abrirAjustes();
+    fireEvent.click(screen.getByRole("button", { name: "Record" }));
+    expect(screen.getByText("Before recording")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "H.265 (HEVC)" }));
+    await waitFor(() => expect(llamadas.filter((l) => l.comando === "set_settings").at(-1)?.args)
+      .toMatchObject({ settings: { videoCodec: "h265" } }));
+    responde("get_settings", { ...AJUSTES, videoCodec: "h265" });
+    emite(EVENTS.settingsShown, null);
+    await waitFor(() => expect(screen.getByRole("button", { name: "H.265 (HEVC)" }))
+      .toHaveAttribute("aria-pressed", "true"));
+  });
+});
+
 describe("F2 para capturar region", () => {
+  it("quitar la captura guarda un valor vacio y avisa sin marcar un conflicto", async () => {
+    await abrirAjustes();
+    responde("shortcut_status", {
+      capture: false, edit: true, record: true, replay: false,
+      printScreen: false, winShiftS: false,
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Quitar atajo" })[0]);
+    await waitFor(() => expect(llamadas.filter((l) => l.comando === "set_settings").at(-1)?.args)
+      .toMatchObject({ settings: { captureShortcut: "" } }));
+    expect(screen.getByText("Sin asignar")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Sin atajo de teclado");
+    expect(screen.queryByText("esa combinación está ocupada")).toBeNull();
+  });
+
   it("guarda F2 por IPC, conserva los otros ajustes y lo relee al abrir", async () => {
     await abrirAjustes();
     fireEvent.click(screen.getAllByTitle("Clic para cambiar el atajo")[0]);
@@ -131,14 +164,16 @@ describe("F2 para capturar region", () => {
   });
 });
 
-describe("las cuatro secciones", () => {
-  it("estan las cuatro, y ni una mas", async () => {
+describe("las secciones", () => {
+  it("includes Gallery and uses an icon-only Settings button", async () => {
     await abrirAjustes();
     const menu = screen.getByLabelText("Secciones de ajustes");
     const nombres = within(menu)
       .getAllByRole("button")
-      .map((b) => b.textContent);
-    expect(nombres).toEqual(["Capturar", "Grabar", "Teclas de Windows", "La app"]);
+      .map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(nombres).toEqual(["Capturar", "Grabar", "Galería", "Teclas", "Ajustes"]);
+    expect(within(menu).getByRole("button", { name: "Ajustes" }).textContent).toBe("");
+    expect(within(menu).getByRole("button", { name: "Teclas" }).querySelector("svg")).not.toBeNull();
   });
 
   it("en ingles se llaman por su nombre ingles", async () => {
@@ -147,8 +182,28 @@ describe("las cuatro secciones", () => {
     const menu = screen.getByLabelText("Settings sections");
     const nombres = within(menu)
       .getAllByRole("button")
-      .map((b) => b.textContent);
-    expect(nombres).toEqual(["Capture", "Record", "Windows keys", "The app"]);
+      .map((b) => b.getAttribute("aria-label") ?? b.textContent);
+    expect(nombres).toEqual(["Capture", "Record", "Gallery", "Keys", "Settings"]);
+  });
+
+  it("opens Gallery inside the current window and stops it when leaving", async () => {
+    responde("gallery_list", { items: [], total: 0, directory: "C:/captures" });
+    await abrirAjustes();
+    fireEvent.click(screen.getByRole("button", { name: "Galería" }));
+    expect(screen.getByLabelText("Search captures")).toBeInTheDocument();
+    expect(llamadas.some(c => c.comando === "open_gallery")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Capturar" }));
+    expect(screen.queryByLabelText("Search captures")).toBeNull();
+  });
+
+  it("handles a pending tray Gallery request and later opening requests", async () => {
+    responde("take_gallery_request", true);
+    responde("gallery_list", { items: [], total: 0, directory: "C:/captures" });
+    await abrirAjustes();
+    await screen.findByLabelText("Search captures");
+    fireEvent.click(screen.getByRole("button", { name: "Capturar" }));
+    emite(EVENTS.settingsShown, null);
+    await screen.findByLabelText("Search captures");
   });
 
   it("empieza por Capturar, que es lo que se viene a cambiar", async () => {
@@ -192,7 +247,7 @@ describe("lo que ensenna de la maquina, en «La app»", () => {
   /** Los archivos y la version viven en la ultima seccion, no en la primera. */
   async function irALaApp() {
     await abrirAjustes();
-    fireEvent.click(screen.getByRole("button", { name: "La app" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
   }
 
   it("dice cuanto ocupa la cache en unidades que se entienden", async () => {
@@ -211,35 +266,21 @@ describe("lo que ensenna de la maquina, en «La app»", () => {
     expect(screen.getByText(/^Versión \d+\.\d+\.\d+$/)).toBeInTheDocument();
   });
 
-  it("dice a donde lleva cada boton que saca de la app, antes de pulsarlo", async () => {
-    // Un boton que abre el navegador y no dice a donde no se pulsa, y con razon. La unica
-    // que no lo lleva escrito es la del codigo, que no tiene sitio con sus dos botones.
+  it("removes About and keeps the bottom bar free of the Tour button", async () => {
     await irALaApp();
-    expect(screen.getByText("winshotx.com")).toBeInTheDocument();
-    expect(screen.getByText("buymeacoffee.com/munito")).toBeInTheDocument();
+    expect(screen.queryByText("Acerca de")).toBeNull();
+    expect(screen.queryByText("winshotx.com")).toBeNull();
+    expect(within(screen.getByRole("contentinfo")).queryByRole("button", { name: /Tour/ })).toBeNull();
   });
 
-  it("invitar a un cafe abre buymeacoffee, y no otra cosa", async () => {
+  it("defaults tray click to the latest saved folder and persists every alternative", async () => {
     await irALaApp();
-    fireEvent.click(screen.getByRole("button", { name: "Invitar" }));
-    await waitFor(() => {
-      expect(llamadas.some((l) => l.comando === "open_url")).toBe(true);
-    });
-    const abierta = llamadas.filter((l) => l.comando === "open_url").at(-1);
-    expect(abierta?.args).toEqual({ url: "https://buymeacoffee.com/munito" });
-  });
-
-  it("y los otros tres botones llevan a los otros tres sitios", async () => {
-    await irALaApp();
-    for (const [boton, url] of [
-      ["La web", "https://winshotx.com"],
-      ["El código", "https://github.com/Mun1to/winshotx"],
-      ["Contar un fallo", "https://github.com/Mun1to/winshotx/issues/new"],
-    ] as const) {
-      fireEvent.click(screen.getByRole("button", { name: boton }));
-      await waitFor(() => {
-        expect(llamadas.filter((l) => l.comando === "open_url").at(-1)?.args).toEqual({ url });
-      });
+    const selector = screen.getByRole("combobox", { name: "Clic izquierdo" });
+    expect(selector).toHaveValue("latestFolder");
+    for (const action of ["capture", "record", "gallery", "settings", "captureFolder", "latestFolder"]) {
+      fireEvent.change(selector, { target: { value: action } });
+      await waitFor(() => expect(llamadas.filter(c => c.comando === "set_settings").at(-1)?.args)
+        .toMatchObject({ settings: { trayClickAction: action } }));
     }
   });
 });
@@ -252,7 +293,8 @@ describe("lo que ensenna de la maquina, en «La app»", () => {
 describe("el tour de los ajustes", () => {
   async function hastaElFinal() {
     await abrirAjustes();
-    fireEvent.click(screen.getByRole("button", { name: /Tour/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Empezar" }));
     // «Siguiente» hasta que el boton cambia a «Listo», que es como se sabe que es la
     // ultima. Contar las paradas a mano dejaria la prueba pidiendo un numero cada vez que
     // se anade una.
@@ -264,19 +306,17 @@ describe("el tour de los ajustes", () => {
     expect(screen.getByRole("button", { name: "Listo" })).toBeInTheDocument();
   }
 
-  it("acaba contando como se ayuda, y el boton lleva al cafe", async () => {
+  it("ends on the tray setting and closes normally", async () => {
     await hastaElFinal();
-    fireEvent.click(screen.getByRole("button", { name: /Invítame a un café/ }));
-    await waitFor(() => {
-      expect(llamadas.filter((l) => l.comando === "open_url").at(-1)?.args).toEqual({
-        url: "https://buymeacoffee.com/munito",
-      });
-    });
+    expect(screen.getByText("El icono a tu manera")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Listo" }));
+    expect(screen.queryByText("El icono a tu manera")).toBeNull();
   });
 
   it("y ninguna otra parada pide nada", async () => {
     await abrirAjustes();
-    fireEvent.click(screen.getByRole("button", { name: /Tour/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Empezar" }));
     expect(screen.queryByRole("button", { name: /Invítame a un café/ })).not.toBeInTheDocument();
   });
 });
@@ -401,7 +441,7 @@ describe("la barra de abajo", () => {
     await abrirAjustes();
     expect(within(barra()).getByText("Al soltar")).toBeInTheDocument();
 
-    for (const nombre of ["Grabar", "Teclas de Windows", "La app"]) {
+    for (const nombre of ["Grabar", "Teclas", "Ajustes"]) {
       fireEvent.click(screen.getByRole("button", { name: nombre }));
       expect(within(barra()).getByRole("group", { name: "Tema" })).toBeInTheDocument();
     }
@@ -416,7 +456,7 @@ describe("la barra de abajo", () => {
         within(barra()).getByRole("button", { name: "estás en la última versión" }),
       ).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole("button", { name: "La app" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ajustes" }));
     expect(screen.queryByText("Actualizaciones")).toBeNull();
   });
 
@@ -523,7 +563,7 @@ describe("elegir pantalla y calidad", () => {
   it("la calidad se elige por tamaño, no por un número suelto", async () => {
     await irAGrabar();
     const grupo = screen.getByRole("group", { name: "Calidad" });
-    expect(within(grupo).getByRole("button", { name: "Nativa" })).toHaveAttribute(
+    expect(within(grupo).getByRole("button", { name: "Resolución original" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );

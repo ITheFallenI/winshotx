@@ -92,6 +92,14 @@ impl GifOptions {
     }
 }
 
+fn palette_step(total: usize) -> usize { (total / PALETTE_SAMPLES).max(1) }
+
+/// The reader must supply the sampled palette pass, then the complete encoding pass.
+/// Only indices are scheduled twice; decoded frames stay in the bounded read-ahead queue.
+pub(crate) fn read_order(indices: &[usize]) -> Vec<usize> {
+    indices.iter().step_by(palette_step(indices.len())).chain(indices.iter()).copied().collect()
+}
+
 /// Codifica el GIF leyendo los fotogramas bajo demanda: nunca se cargan todos en RAM.
 pub fn encode<L, P>(
     indices: &[usize],
@@ -114,7 +122,7 @@ where
 
     // 1) Paleta global: una sola para todo el clip, asi no parpadean los colores.
     progress("palette", 0, total);
-    let step = (total / PALETTE_SAMPLES).max(1);
+    let step = palette_step(total);
     let muestreados = total.div_ceil(step);
     let zancada = zancada_de_muestreo(width, height, muestreados, options.sample_faction());
     let por_fotograma = ((width as usize) * (height as usize)).div_ceil(zancada);

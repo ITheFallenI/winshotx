@@ -14,6 +14,7 @@ import type { SessionInfo } from "../../lib/types";
 import { conProporcion, medida, type Recorte } from "../../lib/recorte";
 
 const GRABACION: SessionInfo = {
+  videoCodec: "h264",
   id: "s1",
   region: { x: 0, y: 0, width: 800, height: 600 },
   fps: 30,
@@ -58,6 +59,39 @@ beforeEach(() => {
 });
 
 describe("elegir el formato", () => {
+  it("respeta H.265 elegido antes de grabar sin tener que volver a elegirlo", async () => {
+    pintar({ videoCodec: "h265" });
+    expect(screen.getByRole("button", { name: "H.265 (HEVC)" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(loExportado()).toMatchObject({ videoCodec: "h265" }));
+  });
+
+  it("H.264 es el valor inicial y H.265 llega al exportador como eleccion explicita", async () => {
+    pintar();
+    expect(screen.getByRole("button", { name: "H.264" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "H.265 (HEVC)" }));
+    expect(screen.getByRole("button", { name: "H.265 (HEVC)" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(loExportado()).toMatchObject({ format: "mp4", videoCodec: "h265" }));
+  });
+
+  it("el codec de video no se aplica al cambiar a una imagen", async () => {
+    pintar();
+    fireEvent.click(screen.getByRole("button", { name: "H.265 (HEVC)" }));
+    fireEvent.click(screen.getByText("PNG"));
+    expect(screen.queryByRole("button", { name: "H.265 (HEVC)" })).toBeNull();
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    await waitFor(() => expect(loExportado()).toMatchObject({ format: "png", videoCodec: "h264" }));
+  });
+
+  it("en ingles llama al motor integrado por un nombre ingles", () => {
+    aplicarIdioma("en");
+    pintar();
+    expect(screen.getByText("Built-in encoder")).toBeInTheDocument();
+    expect(screen.getByText("Video codec")).toBeInTheDocument();
+    expect(screen.queryByText(/Nativ[oa]/)).toBeNull();
+  });
+
   it("una grabacion empieza en MP4 y una captura suelta en PNG", () => {
     const { unmount } = pintar();
     expect(screen.getByText("MP4").className).toContain("bg-white/15");

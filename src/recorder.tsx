@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RecorderBar } from "./components/recording/RecorderBar";
 import "./styles.css";
+import "./lib/sinMenuDelNavegador";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

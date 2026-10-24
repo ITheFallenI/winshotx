@@ -6168,8 +6168,10 @@ dependencies = [
  "tauri-plugin-updater",
  "thiserror 2.0.20",
  "uuid",
+ "webview2-com",
  "windows 0.62.2",
  "windows-capture",
+ "windows-core 0.61.2",
  "windows-future 0.3.2",
  "xcap",
 ]

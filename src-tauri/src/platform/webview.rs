@@ -27,6 +27,37 @@ pub fn version() -> Option<String> {
     Some(String::new())
 }
 
+/// Le dice al navegador de esa ventana que gaste lo minimo (`baja`) o lo normal.
+///
+/// Las ventanas que no se ven (los overlays aparcados, los ajustes escondidos en la
+/// bandeja) siguen vivas para abrir al instante, y cada una es un proceso de WebView2.
+/// Con el nivel bajo el navegador suelta cachés y manda a disco lo que no esta usando;
+/// al volver a normal lo recupera. Es la API de WebView2 pensada para esto
+/// (`MemoryUsageTargetLevel`, desde el runtime 114). En uno mas viejo no existe y no pasa
+/// nada: se queda como estaba.
+#[cfg(windows)]
+pub fn memoria_baja(window: &tauri::WebviewWindow, baja: bool) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+    };
+    use windows_core_61::Interface;
+
+    let _ = window.with_webview(move |webview| unsafe {
+        let Ok(core) = webview.controller().CoreWebView2() else { return };
+        let Ok(core) = core.cast::<ICoreWebView2_19>() else { return };
+        let nivel = if baja {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+        } else {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+        };
+        let _ = core.SetMemoryUsageTargetLevel(nivel);
+    });
+}
+
+#[cfg(not(windows))]
+pub fn memoria_baja(_window: &tauri::WebviewWindow, _baja: bool) {}
+
 /// El texto del aviso, en los dos idiomas de la aplicacion.
 ///
 /// Aparte y puro para poder probarlo: lo que aqui importa es que diga QUE falta y COMO se

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Coffee, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { SeccionId } from "./SettingsHeader";
-import { CAFE } from "../../lib/enlaces";
-import { openUrl } from "../../lib/ipc";
 import { useT } from "../../lib/i18n";
 
 /**
@@ -20,8 +18,6 @@ interface Paso {
   objetivo?: string;
   titulo: string;
   texto: string;
-  /** Pone el boton de invitar a un cafe dentro de la tarjeta. Solo lo lleva el ultimo. */
-  cafe?: boolean;
 }
 
 /**
@@ -37,7 +33,7 @@ const PASOS: Paso[] = [
     id: "secciones",
     seccion: "capturar",
     objetivo: "secciones",
-    titulo: "Todo está en estas cuatro",
+    titulo: "Todas las secciones, aquí",
     texto:
       "No hay más pantallas ni menús escondidos: lo que se puede cambiar está repartido aquí, y cada una cabe entera sin bajar.",
   },
@@ -82,13 +78,12 @@ const PASOS: Paso[] = [
       "La carpeta a la que van las capturas y los vídeos que guardas. El nombre lo pone winshotx con la fecha y la hora, y nunca pisa uno que ya exista.",
   },
   {
-    id: "ayudar",
+    id: "bandeja",
     seccion: "app",
-    objetivo: "acerca",
-    titulo: "Ya está: así puedes ayudar",
+    objetivo: "bandeja",
+    titulo: "El icono a tu manera",
     texto:
-      "winshotx es gratis, sin cuentas y sin anuncios, y lo hago yo solo. Si te ahorra tiempo, un café es lo que lo mantiene en pie. Y si no, una estrella en GitHub o contar un fallo ayudan igual.",
-    cafe: true,
+      "Elige qué hace un clic izquierdo en el icono de winshotx. El botón derecho abre el menú.",
   },
 ];
 
@@ -287,16 +282,6 @@ export function GuidedTour({ onNavegar, onCerrar }: Props) {
         <h2 className="pe-6 text-[14.5px] font-semibold text-titulo">{t(paso.titulo)}</h2>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-apagado">{t(paso.texto)}</p>
 
-        {paso.cafe && (
-          <button
-            type="button"
-            onClick={() => void openUrl(CAFE)}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-linea-fuerte py-2 text-[12.5px] font-medium text-suave transition-colors hover:bg-realce hover:text-titulo"
-          >
-            <Coffee className="size-4" />
-            {t("Invítame a un café")}
-          </button>
-        )}
 
         <div className="mt-3.5 flex items-center justify-between">
           <span className="flex items-center gap-1.5" aria-hidden="true">

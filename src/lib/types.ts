@@ -28,6 +28,7 @@ export interface WindowRect {
 
 /** Que pasa al soltar el raton sobre la region. Son los dos perfiles de trabajo. */
 export type CaptureFlow = "toolbar" | "instant";
+export type TrayClickAction = "latestFolder" | "capture" | "record" | "gallery" | "settings" | "captureFolder";
 
 /** De que color se pinta la app. "sistema" es seguir a Windows y cambiar con el. */
 export type Theme = "sistema" | "claro" | "oscuro";
@@ -108,6 +109,7 @@ export interface RecordOptions {
 }
 
 export interface SessionInfo {
+  videoCodec: VideoCodec;
   id: string;
   region: Rect;
   fps: number;
@@ -224,11 +226,13 @@ export interface RecordingTick {
 
 export type ExportFormat = "gif" | "mp4" | "png" | "jpg";
 export type ExportEngine = "native" | "ffmpeg";
+export type VideoCodec = "h264" | "h265";
 
 export interface ExportRequest {
   sessionId: string;
   format: ExportFormat;
   engine: ExportEngine;
+  videoCodec: VideoCodec;
   /** Rango de frames incluido, ambos extremos. */
   from: number;
   to: number;
@@ -299,6 +303,7 @@ export interface Settings {
   /** La tecla que captura y abre el editor de una vez, sin pasar por la barra. */
   editShortcut: string;
   saveDirectory: string;
+  trayClickAction: TrayClickAction;
   copyAfterCapture: boolean;
   openEditorAfterRecording: boolean;
   captureCursor: boolean;
@@ -310,6 +315,8 @@ export interface Settings {
   /** Enseñar los atajos que se pulsan. Solo atajos, nunca una tecla suelta. */
   highlightKeys: boolean;
   fps: number;
+  /** Códec elegido antes de grabar, conservado por cada sesión. */
+  videoCodec: VideoCodec;
   /** Grabar siempre la pantalla en un anillo, para poder quedarse con lo último. */
   replayEnabled: boolean;
   /** Cuántos segundos guarda ese anillo hacia atrás. */
@@ -336,6 +343,8 @@ export interface Settings {
   instantSave: boolean;
   printScreenCapture: boolean;
   takeWinShiftS: boolean;
+  /** Los atajos los lleva un ayudante con privilegios: funcionan con ventanas de administrador. */
+  adminShortcuts: boolean;
   onboarded: boolean;
   /** Interno: lo que valía el ajuste de Windows antes de quitarle la tecla. */
   snippingKeyRestore: number | null;
@@ -435,11 +444,40 @@ export const EVENTS = {
   /** "Que la pantalla numero N se capture entera", venga la orden de donde venga. */
   overlayTakeScreen: "winshotx://overlay-take-screen",
   /**
+   * La seleccion de una pantalla, para que las demas pinten su trozo. Un recorte puede
+   * empezar en un monitor y acabar en otro, y cada overlay es una ventana aparte.
+   */
+  overlaySeleccion: "winshotx://overlay-seleccion",
+  /**
+   * "El raton esta en esta pantalla", con el id del monitor. Las demas se lo quitan: el
+   * `pointerleave` no siempre llega al cruzar a otro monitor, y una pantalla que se cree
+   * con el raton sigue resaltando la ventana que habia debajo de donde lo vio por ultima vez.
+   */
+  overlayCursor: "winshotx://overlay-cursor",
+  /**
+   * "Acabo de arrancar, repetidme lo vuestro". Cada overlay arranca a su ritmo, y lo que
+   * otra pantalla anuncio antes de que esta escuchara (la ventana resaltada al abrir) se
+   * perdia hasta que el raton cambiaba de ventana.
+   */
+  overlayPide: "winshotx://overlay-pide",
+  /**
    * Segundos que le quedan al temporizador. Rust manda el numero de partida al
    * ensennar la ventanita y un cero al acabar; entre medias cuenta la propia pagina.
    */
   countdown: "winshotx://countdown",
 } as const;
+
+/** Lo que viaja en `overlaySeleccion`: de quien es y donde esta, en fisicas del escritorio. */
+export interface OverlaySeleccion {
+  monitor: number;
+  generation: number;
+  rect: Rect | null;
+  /**
+   * `recorte` es una seleccion hecha; `ventana`, la ventana resaltada bajo el raton. Una
+   * ventana a caballo entre dos pantallas se resalta en las dos, como una sola.
+   */
+  tipo: "recorte" | "ventana";
+}
 
 /** Lo que viaja en `overlayMode`: el estado de la barra, igual en todas las pantallas. */
 export interface OverlayModeState {

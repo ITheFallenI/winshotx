@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { EditorApp } from "./components/editor/EditorApp";
 import "./styles.css";
+import "./lib/sinMenuDelNavegador";
 
 const sessionId = new URLSearchParams(window.location.search).get("session") ?? "";
 

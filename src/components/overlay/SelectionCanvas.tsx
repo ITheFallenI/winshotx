@@ -31,6 +31,7 @@ import {
   type CaptureMode,
   type OverlayModeState,
   type OverlayPayload,
+  type OverlaySeleccion,
   type Rect,
   type StillAction,
 } from "../../lib/types";
@@ -148,6 +149,19 @@ function canales(hex: string): string {
   return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
 }
 
+/**
+ * El trozo de un recorte que cae dentro de esta ventana, o null si no asoma. Un recorte
+ * puede seguir mas alla del borde cuando se arrastra hacia otra pantalla.
+ */
+function dentroDeLaVentana(rect: Rect): Rect | null {
+  const x0 = Math.max(0, rect.x);
+  const y0 = Math.max(0, rect.y);
+  const x1 = Math.min(window.innerWidth, rect.x + rect.width);
+  const y1 = Math.min(window.innerHeight, rect.y + rect.height);
+  if (x1 <= x0 || y1 <= y0) return null;
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
+
 function contains(rect: Rect, x: number, y: number): boolean {
   return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
 }
@@ -178,6 +192,23 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
   const t = useT();
   const [payload, setPayload] = useState<OverlayPayload | null>(null);
   const [selection, setSelection] = useState<Rect | null>(null);
+  /**
+   * El recorte (o la ventana resaltada) de OTRA pantalla, en fisicas del escritorio
+   * virtual. Aqui solo se pinta el trozo que cae en esta: el gesto, la barra y la foto son
+   * de la ventana donde empezo.
+   */
+  const [ajena, setAjena] = useState<{
+    monitor: number;
+    rect: Rect;
+    tipo: OverlaySeleccion["tipo"];
+  } | null>(null);
+  /** Un recorte hecho en otra pantalla: mientras lo haya, aqui no se resalta nada. */
+  const recorteAjeno = ajena?.tipo === "recorte";
+  /** Lo ultimo que se dijo a las demas pantallas, para no repetirlo en cada movimiento. */
+  const anunciadaRef = useRef("");
+  /** Sube cada vez que otra pantalla pide que se le repita lo nuestro. */
+  const [reanuncio, setReanuncio] = useState(0);
+  const reanuncioRef = useRef(0);
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
   const [cursor, setCursor] = useState({ x: 0, y: 0 });
   /**
@@ -308,9 +339,11 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
   const hoveredRef = useRef<VentanaDelSistema | null>(null);
 
   const hovered = useMemo(() => {
-    if (!cursorAqui || selection || mode.kind !== "idle" || pantallaEntera) return null;
+    if (!cursorAqui || selection || recorteAjeno || mode.kind !== "idle" || pantallaEntera) {
+      return null;
+    }
     return windowAt(cursor.x, cursor.y);
-  }, [windowAt, cursor, cursorAqui, selection, mode.kind, pantallaEntera]);
+  }, [windowAt, cursor, cursorAqui, selection, recorteAjeno, mode.kind, pantallaEntera]);
   hoveredRef.current = hovered;
 
   /**
@@ -333,6 +366,8 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     setFondoListo(false);
     setSource(null);
     setSelection(null);
+    setAjena(null);
+    anunciadaRef.current = "";
     setMode({ kind: "idle" });
     setPantallaEntera(false);
     setBusy(false);
@@ -459,8 +494,25 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     const unlisten = listen<OverlayPayload>(EVENTS.overlayShow, (e) => void boot(e.payload), {
       target: etiqueta,
     });
+    // Aparcada, la pantalla congelada ya no la ve nadie: se suelta (unos 15 MB por
+    // monitor grande) en vez de guardarla hasta la captura siguiente, que la cambia igual.
+    // Subir `bootIdRef` deja sin efecto un arranque que aun estuviera a medias.
+    const aparcada = listen(
+      EVENTS.overlayHide,
+      () => {
+        bootIdRef.current++;
+        setSelection(null);
+        setAjena(null);
+        setMode({ kind: "idle" });
+        setFondoListo(false);
+        setSource(null);
+        setPayload(null);
+      },
+      { target: etiqueta },
+    );
     return () => {
       void unlisten.then((fn) => fn());
+      void aparcada.then((fn) => fn());
     };
   }, [boot]);
 
@@ -468,6 +520,107 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
     (rect: Rect): Rect => aVirtual(rect, payload!.monitor, scale),
     [payload, scale],
   );
+
+  /**
+   * Se cuenta a las demas pantallas el recorte de esta (o la ventana resaltada), en
+   * fisicas del escritorio, para que pinten el trozo que les cae. Sin esto, arrastrar de
+   * un monitor a otro seguia recortando pero en la segunda pantalla no se veia nada, y una
+   * ventana a caballo entre dos se resaltaba solo por la mitad.
+   *
+   * Solo se manda lo que cambia: un "ya no tengo" sin haber dicho antes que si no le
+   * interesa a nadie, y el raton moviendose por la misma ventana no cambia nada.
+   */
+  useEffect(() => {
+    if (!payload) return;
+    const propia =
+      selection && selection.width >= MIN_DRAG && selection.height >= MIN_DRAG ? selection : null;
+    const rect = propia ?? hovered?.rect ?? null;
+    const tipo: OverlaySeleccion["tipo"] = propia ? "recorte" : "ventana";
+    const fisico = rect ? aVirtual(rect, payload.monitor, scale) : null;
+    const clave = fisico ? `${tipo}:${fisico.x},${fisico.y},${fisico.width},${fisico.height}` : "";
+    // Si otra pantalla acaba de arrancar, se le repite aunque no haya cambiado nada.
+    const pedido = reanuncioRef.current !== reanuncio;
+    reanuncioRef.current = reanuncio;
+    if (clave === anunciadaRef.current && !(pedido && clave)) return;
+    anunciadaRef.current = clave;
+    void emit(EVENTS.overlaySeleccion, {
+      monitor: payload.monitor.id,
+      generation: payload.generation,
+      rect: fisico,
+      tipo,
+    } satisfies OverlaySeleccion);
+  }, [selection, hovered, payload, scale, reanuncio]);
+
+  const payloadRef = useRef<OverlayPayload | null>(null);
+  payloadRef.current = payload;
+
+  // Lo que llega de las otras pantallas. Un recorte nuevo en otra deja esta sin el suyo:
+  // hay una sola captura abierta, aunque se vea en varias ventanas.
+  useEffect(() => {
+    const unlisten = listen<OverlaySeleccion>(EVENTS.overlaySeleccion, ({ payload: p }) => {
+      const mio = payloadRef.current;
+      if (!mio || p.generation !== mio.generation || p.monitor === mio.monitor.id) return;
+      if (p.rect) {
+        setAjena({ monitor: p.monitor, rect: p.rect, tipo: p.tipo });
+        if (p.tipo === "recorte") setSelection(null);
+      } else {
+        setAjena((prev) => (prev?.monitor === p.monitor ? null : prev));
+      }
+    });
+    // Si el raton ha llegado a otra pantalla, en esta ya no esta, aunque no haya llegado el
+    // `pointerleave`. Sin esto, con otra ventana encima de la mitad de esta pantalla, aqui
+    // se seguia resaltando esa otra y la mitad de la ventana buena no salia.
+    const cursor = listen<{ monitor: number; generation: number }>(
+      EVENTS.overlayCursor,
+      ({ payload: p }) => {
+        const mio = payloadRef.current;
+        if (!mio || p.generation !== mio.generation || p.monitor === mio.monitor.id) return;
+        setCursorAqui(false);
+      },
+    );
+    const pide = listen<{ monitor: number; generation: number }>(
+      EVENTS.overlayPide,
+      ({ payload: p }) => {
+        const mio = payloadRef.current;
+        if (!mio || p.generation !== mio.generation || p.monitor === mio.monitor.id) return;
+        setReanuncio((n) => n + 1);
+      },
+    );
+    return () => {
+      void unlisten.then((fn) => fn());
+      void cursor.then((fn) => fn());
+      void pide.then((fn) => fn());
+    };
+  }, []);
+
+  // Recien arrancada, esta pantalla no oyo lo que las demas anunciaron antes: se lo pide.
+  useEffect(() => {
+    if (!payload) return;
+    void emit(EVENTS.overlayPide, {
+      monitor: payload.monitor.id,
+      generation: payload.generation,
+    });
+  }, [payload]);
+
+  // Al llegar el raton a esta pantalla se avisa a las demas (ver `EVENTS.overlayCursor`).
+  useEffect(() => {
+    if (!cursorAqui || !payload) return;
+    void emit(EVENTS.overlayCursor, {
+      monitor: payload.monitor.id,
+      generation: payload.generation,
+    });
+  }, [cursorAqui, payload, reanuncio]);
+
+  /**
+   * Lo de otra pantalla, en CSS de aqui y SIN recortar al borde: se pinta entero y lo que
+   * sobra lo esconde la ventana, asi en la costura entre pantallas no sale un borde y las
+   * dos mitades se leen como una sola cosa. `null` si no asoma por esta pantalla.
+   */
+  const ajenaAqui = useMemo(() => {
+    if (!ajena || !payload) return null;
+    const local = aPantalla(ajena.rect, payload.monitor, scale);
+    return dentroDeLaVentana(local) ? local : null;
+  }, [ajena, payload, scale]);
 
   /**
    * Al vuelo, copiar puede ser copiar Y guardar, si asi lo dicen los ajustes. Se decide
@@ -590,8 +743,11 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
   );
 
   const grabarRegion = useCallback(
-    async (rect: Rect, format: "gif" | "video") => {
+    async (recorte: Rect, format: "gif" | "video") => {
       if (!payload || busy) return;
+      // Grabar es de una pantalla: un recorte que cruza a otra se graba hasta el borde.
+      const rect = dentroDeLaVentana(recorte);
+      if (!rect) return;
       setBusy(true);
       setError(null);
       try {
@@ -836,9 +992,16 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
         readHex(x, y);
         setSelection(normalize(mode.originX, mode.originY, x, y));
       } else if (mode.kind === "moving") {
+        // Un recorte que ya cruza a otra pantalla no se mete a la fuerza en esta.
+        const b = mode.base;
+        const cabe =
+          b.x >= 0 &&
+          b.y >= 0 &&
+          b.x + b.width <= window.innerWidth &&
+          b.y + b.height <= window.innerHeight;
         setSelection({
-          x: clamp(x - mode.grabX, 0, window.innerWidth - mode.base.width),
-          y: clamp(y - mode.grabY, 0, window.innerHeight - mode.base.height),
+          x: cabe ? clamp(x - mode.grabX, 0, window.innerWidth - b.width) : x - mode.grabX,
+          y: cabe ? clamp(y - mode.grabY, 0, window.innerHeight - b.height) : y - mode.grabY,
           width: mode.base.width,
           height: mode.base.height,
         });
@@ -1000,9 +1163,21 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
   /** El resalte de color (foco + borde que brilla) o, apagado en ajustes, el marco blanco. */
   const conColor = payload.settings.windowHighlight;
   const rgb = canales(payload.settings.windowHighlightColor);
-  const sitioBarra = active ? sitioDeLaBarra(active, window.innerHeight) : null;
+  /** La ventana que se resalta desde otra pantalla y asoma por esta, si no hay una propia. */
+  const ventanaAjena =
+    !active && !highlight && ajena?.tipo === "ventana" && !pantallaEntera ? ajenaAqui : null;
+  /** Lo que se ve del recorte en esta pantalla: ahi van la barra y la medida. */
+  const activeAqui = active ? (dentroDeLaVentana(active) ?? active) : null;
+  const sitioBarra = activeAqui ? sitioDeLaBarra(activeAqui, window.innerHeight) : null;
+  /** Arrastrando hacia otra pantalla, el puntero sigue llegando aqui pero ya no esta. */
+  const cursorDentro =
+    cursor.x >= 0 &&
+    cursor.y >= 0 &&
+    cursor.x <= window.innerWidth &&
+    cursor.y <= window.innerHeight;
   const magnifierVisible =
     cursorAqui &&
+    cursorDentro &&
     payload.settings.showMagnifier &&
     !pantallaEntera &&
     (!active || mode.kind === "drawing");
@@ -1022,7 +1197,7 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
 
       {/* Sin seleccion: velo uniforme. Con seleccion o ventana resaltada: el velo lo dibuja
           la sombra del recuadro, que deja su hueco sin oscurecer. */}
-      {!active && !(highlight && conColor) && (
+      {!active && !recorteAjeno && !((highlight || ventanaAjena) && conColor) && (
         <div className="pointer-events-none absolute inset-0 bg-black/45" />
       )}
 
@@ -1107,10 +1282,57 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
           <DimensionBadge
             width={active.width * scale}
             height={active.height * scale}
-            left={active.x + 2}
-            top={active.y > 26 ? active.y - 26 : active.y + 6}
+            left={activeAqui!.x + 2}
+            top={activeAqui!.y > 26 ? activeAqui!.y - 26 : activeAqui!.y + 6}
           />
         </>
+      )}
+
+      {/* El trozo que cae aqui de un recorte hecho desde otra pantalla: se ve igual que el
+          propio, pero sin asas ni barra, que estan en la pantalla donde empezo. */}
+      {!active && recorteAjeno && (
+        <div
+          style={
+            ajenaAqui
+              ? {
+                  left: ajenaAqui.x,
+                  top: ajenaAqui.y,
+                  width: ajenaAqui.width,
+                  height: ajenaAqui.height,
+                  boxShadow: "0 0 0 100vmax rgba(0,0,0,0.45)",
+                }
+              : undefined
+          }
+          className={
+            ajenaAqui
+              ? "pointer-events-none absolute border border-blue-500/90"
+              : "pointer-events-none absolute inset-0 bg-black/45"
+          }
+        />
+      )}
+
+      {/* La otra mitad de una ventana resaltada en la pantalla de al lado. Mismo foco y
+          mismo borde, sin el titulo, que ya sale en la mitad donde esta el raton. */}
+      {ventanaAjena && (
+        <div
+          style={{
+            left: ventanaAjena.x,
+            top: ventanaAjena.y,
+            width: ventanaAjena.width,
+            height: ventanaAjena.height,
+            ...(conColor
+              ? {
+                  borderColor: `rgb(${rgb})`,
+                  boxShadow: `0 0 0 100vmax rgba(0,0,0,0.45), 0 0 18px 2px rgba(${rgb},0.55), inset 0 0 14px rgba(${rgb},0.25)`,
+                }
+              : {}),
+          }}
+          className={`pointer-events-none absolute ${
+            conColor
+              ? "rounded-lg border-2"
+              : "rounded-[3px] border border-white/45 bg-white/[0.06]"
+          }`}
+        />
       )}
 
       {/*
@@ -1147,7 +1369,7 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
         {active && mode.kind === "idle" && !alVuelo && !alEditor && (
           <FloatingToolbar
             key="toolbar"
-            left={clamp(active.x + active.width / 2, 190, window.innerWidth - 190)}
+            left={clamp(activeAqui!.x + activeAqui!.width / 2, 190, window.innerWidth - 190)}
             top={sitioBarra!.top}
             flipped={sitioBarra!.volteada}
             busy={busy}
@@ -1203,6 +1425,7 @@ export function SelectionCanvas({ monitorId }: { monitorId: number }) {
       {cursorAqui &&
         ultimaRegion &&
         !selection &&
+        !recorteAjeno &&
         mode.kind === "idle" &&
         !pantallaEntera &&
         !hovered && (

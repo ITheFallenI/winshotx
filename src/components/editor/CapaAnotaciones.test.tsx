@@ -52,6 +52,74 @@ beforeEach(() => {
 });
 
 describe("dibujar una marca", () => {
+  it("redimensiona el recorrido completo del pincel desde una esquina", () => {
+    const onCambiar = vi.fn();
+    const original: Anotacion = { kind: "brush", x1: .1, y1: .1, x2: .5, y2: .1,
+      points: [[.1,.1],[.3,.5],[.5,.1]], color: "#ef4444", text: "", strokeWidth: .006 };
+    const { svg } = pintar({ herramienta: "select", anotaciones: [original], seleccionada: 0, onCambiar });
+    fireEvent.pointerDown(svg.querySelector('[data-corner="se"]')!, { clientX: 300, clientY: 150 });
+    fireEvent.pointerMove(svg, { clientX: 460, clientY: 230 });
+    fireEvent.pointerUp(svg);
+    expect(onCambiar).toHaveBeenCalledTimes(1);
+    const points = onCambiar.mock.calls[0][1].points;
+    expect(points[0]).toEqual([.1,.1]);
+    expect(points[1][0]).toBeCloseTo(.5); expect(points[1][1]).toBeCloseTo(.9);
+    expect(points[2][0]).toBeCloseTo(.9); expect(points[2][1]).toBeCloseTo(.1);
+  });
+  it("mueve una marca seleccionada en un solo cambio y cancelar conserva el original", () => {
+    const onCambiar = vi.fn(), onSeleccionar = vi.fn();
+    const original: Anotacion = { kind: "box", x1: .1, y1: .1, x2: .5, y2: .5, color: "#ef4444", text: "" };
+    const { svg } = pintar({ herramienta: "select", anotaciones: [original], onCambiar, onSeleccionar });
+    fireEvent.pointerDown(svg, { clientX: 180, clientY: 90 });
+    fireEvent.pointerMove(svg, { clientX: 220, clientY: 110 });
+    fireEvent.pointerMove(svg, { clientX: 260, clientY: 130 });
+    expect(onCambiar).not.toHaveBeenCalled();
+    fireEvent.pointerUp(svg);
+    expect(onSeleccionar).toHaveBeenCalledWith(0);
+    expect(onCambiar).toHaveBeenCalledTimes(1);
+    expect(onCambiar.mock.calls[0][1].x1).toBeCloseTo(.3);
+    fireEvent.pointerDown(svg, { clientX: 180, clientY: 90 });
+    fireEvent.pointerMove(svg, { clientX: 400, clientY: 200 });
+    fireEvent.pointerCancel(svg);
+    expect(onCambiar).toHaveBeenCalledTimes(1);
+    expect(original.x1).toBe(.1);
+  });
+  it("el pincel conserva un recorrido curvo y se confirma una sola vez", () => {
+    const { onAnadir, svg } = pintar({ herramienta: "brush", grosorPincel: 0.012, color: "#0a9bff" });
+    fireEvent.pointerDown(svg, { clientX: 140, clientY: 70 });
+    fireEvent.pointerMove(svg, { clientX: 300, clientY: 210 });
+    fireEvent.pointerUp(svg, { clientX: 460, clientY: 70 });
+    expect(onAnadir).toHaveBeenCalledTimes(1);
+    expect(onAnadir.mock.calls[0][0]).toMatchObject({
+      kind: "brush", color: "#0a9bff", strokeWidth: 0.012,
+      points: [[0.1, 0.1], [0.5, 0.8], [0.9, 0.1]],
+    });
+  });
+
+  it("el pincel dibuja un punto visible con un clic y descarta un gesto cancelado", () => {
+    const { onAnadir, svg } = pintar({ herramienta: "brush" });
+    fireEvent.pointerDown(svg, { clientX: 300, clientY: 150 });
+    fireEvent.pointerUp(svg, { clientX: 300, clientY: 150 });
+    expect(onAnadir).toHaveBeenCalledTimes(1);
+    expect(onAnadir.mock.calls[0][0].points).toEqual([[0.5, 0.5]]);
+    fireEvent.pointerDown(svg, { clientX: 200, clientY: 100 });
+    fireEvent.pointerMove(svg, { clientX: 300, clientY: 150 });
+    fireEvent.pointerCancel(svg);
+    fireEvent.pointerUp(svg, { clientX: 300, clientY: 150 });
+    expect(onAnadir).toHaveBeenCalledTimes(1);
+  });
+
+  it("el boton derecho no dibuja y un segundo puntero no altera el trazo", () => {
+    const { onAnadir, svg } = pintar({ herramienta: "brush" });
+    fireEvent.pointerDown(svg, { button: 2, clientX: 100, clientY: 50 });
+    fireEvent.pointerUp(svg, { button: 2, clientX: 100, clientY: 50 });
+    expect(onAnadir).not.toHaveBeenCalled();
+    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 100, clientY: 50 });
+    fireEvent.pointerMove(svg, { pointerId: 2, clientX: 400, clientY: 200 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 300, clientY: 150 });
+    expect(onAnadir.mock.calls[0][0].points).toEqual([[0, 0], [0.5, 0.5]]);
+  });
+
   it("guarda las esquinas de 0 a 1, no en píxeles", () => {
     const { onAnadir, svg } = pintar();
     // De la esquina de arriba a la izquierda al centro de la capa.

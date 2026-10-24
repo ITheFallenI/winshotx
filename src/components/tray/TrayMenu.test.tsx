@@ -6,7 +6,7 @@
  * equivoca de acción no hay ningún otro sitio desde donde arreglarlo.
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TrayMenu } from "./TrayMenu";
 import { aplicarIdioma } from "../../lib/i18n";
 import { emite, llamadas, responde } from "../../test/preparar";
@@ -55,7 +55,7 @@ describe("lo que enseña", () => {
     // Rescatar sin nada grabado no puede hacer nada: la entrada no existe.
     await abrirMenu({ replay: false });
     expect(screen.queryByText("Quedarme con lo último")).toBeNull();
-    expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("switch")).toBeNull();
   });
 
   it("y grabando, la entrada de grabar es la de parar", async () => {
@@ -94,22 +94,34 @@ describe("lo que hace cada entrada", () => {
     ]);
   });
 
-  it("el interruptor del anillo va por el mismo camino que el de los ajustes", async () => {
-    // Y no por un atajo suyo: si Rust reacciona a `set_settings`, encenderlo desde aquí
-    // tiene que ser exactamente lo mismo que encenderlo desde su fila.
+  it("does not offer the always-recording switch, even when replay is enabled", async () => {
     await abrirMenu();
-    fireEvent.click(screen.getByRole("switch"));
-
-    await waitFor(() => {
-      const guardado = llamadas.filter((l) => l.comando === "set_settings").at(-1);
-      expect(guardado?.args).toMatchObject({
-        settings: expect.objectContaining({ replayEnabled: false }),
-      });
-    });
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.queryByText("Grabar siempre lo último")).toBeNull();
+    expect(llamadas.some(c => c.comando === "set_settings")).toBe(false);
   });
 });
 
 describe("al volver a abrirse", () => {
+  it("no mide el relleno vacio mientras llega el estado del primer clic", async () => {
+    let entregar!: (estado: TrayMenuState) => void;
+    responde("tray_menu_state", new Promise<TrayMenuState>((resolve) => { entregar = resolve; }));
+    responde("get_settings", AJUSTES);
+    const medida = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ height: 320 } as DOMRect);
+    try {
+      render(<TrayMenu />);
+      expect(llamadas.filter((l) => l.comando === "resize_tray_menu")).toHaveLength(0);
+      entregar(ESTADO);
+      await waitFor(() => expect(llamadas).toContainEqual({
+        comando: "resize_tray_menu", args: { height: 320 },
+      }));
+      expect(screen.getByText("winshotx")).toBeInTheDocument();
+    } finally {
+      medida.mockRestore();
+    }
+  });
+
   it("relee el estado, porque la ventana se reutiliza", async () => {
     await abrirMenu({ replay: false });
     expect(screen.queryByText("Quedarme con lo último")).toBeNull();

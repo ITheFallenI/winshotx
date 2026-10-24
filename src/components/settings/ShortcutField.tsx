@@ -41,6 +41,12 @@ export function ShortcutField({ value, onChange, active }: Props) {
         setRecording(false);
         return;
       }
+      if ((e.key === "Delete" || e.key === "Backspace") &&
+          !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+        setRecording(false);
+        onChange("");
+        return;
+      }
       if (MODIFIERS.has(e.code) || MODIFIERS.has(e.key)) return;
 
       const parts: string[] = [];
@@ -78,8 +84,11 @@ export function ShortcutField({ value, onChange, active }: Props) {
   }, [recording]);
 
   const parts = partesDeAtajo(value);
+  const assigned = value.trim().length > 0;
 
   return (
+    <div className="flex max-w-[220px] flex-col items-end gap-1">
+    <div className="flex items-center gap-1">
     <button
       ref={boxRef}
       type="button"
@@ -92,6 +101,8 @@ export function ShortcutField({ value, onChange, active }: Props) {
       className={`flex h-8 min-w-[132px] items-center justify-end gap-1 rounded-lg border px-2 transition-colors ${
         recording
           ? "animate-pulse border-blue-500 bg-blue-500/10"
+          : !assigned
+            ? "border-amber-500/40 bg-amber-500/10"
           : active
             ? "border-linea-fuerte bg-hueco hover:border-linea-viva"
             : "border-red-500/40 bg-red-500/10 hover:border-red-400"
@@ -99,6 +110,8 @@ export function ShortcutField({ value, onChange, active }: Props) {
     >
       {recording ? (
         <span className="w-full text-center text-[11px] text-blue-300">{t("Pulsa las teclas…")}</span>
+      ) : !assigned ? (
+        <span className="text-[11px] text-amber-500">{t("Sin asignar")}</span>
       ) : (
         parts.map((part, index) => (
           <kbd
@@ -110,5 +123,23 @@ export function ShortcutField({ value, onChange, active }: Props) {
         ))
       )}
     </button>
+    {assigned && (
+      <button
+        type="button"
+        aria-label={t("Quitar atajo")}
+        title={t("Quitar atajo")}
+        onClick={() => { setRecording(false); onChange(""); }}
+        className="flex size-7 items-center justify-center rounded-md text-tenue hover:bg-realce hover:text-texto"
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+    )}
+    </div>
+    {!assigned && (
+      <p role="status" className="text-right text-[10px] text-amber-500">
+        {t("Sin atajo de teclado. Usa el menú de la bandeja o la barra de captura.")}
+      </p>
+    )}
+    </div>
   );
 }

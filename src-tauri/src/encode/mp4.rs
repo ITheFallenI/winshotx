@@ -4,6 +4,24 @@ use image::RgbaImage;
 
 use crate::error::{AppError, Result};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum VideoCodec {
+    #[default]
+    #[serde(rename = "h264")]
+    H264,
+    #[serde(rename = "h265")]
+    Hevc,
+}
+
+impl VideoCodec {
+    pub fn bitrate(self, h264: u32) -> u32 {
+        match self {
+            Self::H264 => h264,
+            Self::Hevc => (u64::from(h264) * 3 / 5) as u32,
+        }
+    }
+}
+
 pub struct Mp4Options {
     pub width: u32,
     pub height: u32,
@@ -103,12 +121,31 @@ pub fn medida_que_acepta(ancho: u32, alto: u32) -> (u32, u32) {
     (par(f64::from(ancho) * veces), par(f64::from(alto) * veces))
 }
 
+#[cfg(windows)]
 pub fn encode<L, P>(
     indices: &[usize],
     delays_ms: &[u32],
     loader: &mut L,
     path: &Path,
     options: &Mp4Options,
+    audio: Option<Pista>,
+    progress: P,
+) -> Result<()>
+where
+    L: FnMut(usize) -> Result<RgbaImage>,
+    P: FnMut(&str, usize, usize),
+{
+    encode_with_codec(indices, delays_ms, loader, path, options, VideoCodec::H264, audio, progress)
+}
+
+#[cfg(windows)]
+pub fn encode_with_codec<L, P>(
+    indices: &[usize],
+    delays_ms: &[u32],
+    loader: &mut L,
+    path: &Path,
+    options: &Mp4Options,
+    codec: VideoCodec,
     audio: Option<Pista>,
     mut progress: P,
 ) -> Result<()>
@@ -130,9 +167,12 @@ where
 
     let mut encoder = VideoEncoder::new(
         VideoSettingsBuilder::new(width, height)
-            .sub_type(VideoSettingsSubType::H264)
+            .sub_type(match codec {
+                VideoCodec::H264 => VideoSettingsSubType::H264,
+                VideoCodec::Hevc => VideoSettingsSubType::HEVC,
+            })
             .frame_rate(options.fps.max(1))
-            .bitrate(options.bitrate()),
+            .bitrate(codec.bitrate(options.bitrate())),
         match audio.as_ref() {
             Some(pista) => AudioSettingsBuilder::default()
                 .channel_count(u32::from(pista.channels))
@@ -144,7 +184,12 @@ where
         ContainerSettingsBuilder::default(),
         path,
     )
-    .map_err(|e| AppError::Msg(e.to_string()))?;
+    .map_err(|e| AppError::Msg(match codec {
+        VideoCodec::H264 => e.to_string(),
+        VideoCodec::Hevc => format!(
+            "H.265 (HEVC) export could not start. Choose H.264 if HEVC encoding is unavailable on this PC. Windows reported: {e}"
+        ),
+    }))?;
 
     let total = indices.len();
     // Media Foundation cuenta el tiempo en unidades de 100 nanosegundos.
@@ -237,6 +282,36 @@ where
 mod tests {
     use super::*;
     use image::Rgba;
+
+    #[test]
+    fn hevc_reduce_el_bitrate_y_se_serializa_sin_confundir_el_codec() {
+        assert_eq!(VideoCodec::Hevc.bitrate(10_000_000), 6_000_000);
+        assert_eq!(VideoCodec::H264.bitrate(10_000_000), 10_000_000);
+        assert_eq!(serde_json::from_str::<VideoCodec>("\"h265\"").unwrap(), VideoCodec::Hevc);
+        assert_eq!(serde_json::to_string(&VideoCodec::H264).unwrap(), "\"h264\"");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "requiere un codificador HEVC instalado; deja un MP4 para comprobar con ffprobe"]
+    fn codificar_hevc_de_verdad() {
+        let dir = std::env::temp_dir().join("winshotx-codec-check");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("hevc.mp4");
+        let options = Mp4Options { width: 640, height: 360, fps: 30, quality: 80 };
+        let indices: Vec<usize> = (0..30).collect();
+        let mut loader = |i: usize| {
+            Ok(RgbaImage::from_fn(640, 360, |x, y| {
+                Rgba([((x + i as u32 * 8) % 256) as u8, (y % 256) as u8, 120, 255])
+            }))
+        };
+        encode_with_codec(&indices, &vec![33; 30], &mut loader, &path,
+            &options, VideoCodec::Hevc, None, |_, _, _| {}).unwrap();
+        let data = std::fs::read(&path).unwrap();
+        assert!(data.windows(4).any(|fourcc| fourcc == b"hvc1" || fourcc == b"hev1"));
+        assert!(!data.windows(4).any(|fourcc| fourcc == b"avc1"));
+        println!("HEVC: {} ({} bytes)", path.display(), data.len());
+    }
 
     #[test]
     fn la_conversion_invierte_filas_y_canales() {

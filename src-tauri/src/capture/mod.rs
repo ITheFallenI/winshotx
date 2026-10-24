@@ -354,7 +354,19 @@ pub fn window_rects() -> Vec<WindowRect> {
 }
 
 /// Recorta la region pedida del monitor que la contiene, usando la imagen ya congelada.
+///
+/// Si la region pisa mas de una pantalla (se empezo a arrastrar en una y se solto en
+/// otra), se cose: cada pantalla pone su trozo en su sitio, y lo que no cae en ninguna se
+/// queda transparente, igual que en `stitch_all`.
 pub fn crop_from_freeze(freezes: &[Freeze], region: Rect) -> Result<image::RgbaImage> {
+    let pisadas = freezes
+        .iter()
+        .filter(|f| interseccion(&f.monitor, &region).is_some())
+        .count();
+    if pisadas > 1 {
+        return coser_region(freezes, region);
+    }
+
     let (cx, cy) = region.center();
     let freeze = freezes
         .iter()
@@ -371,6 +383,47 @@ pub fn crop_from_freeze(freezes: &[Freeze], region: Rect) -> Result<image::RgbaI
         return Err(AppError::Msg("la selección queda fuera de la pantalla".into()));
     }
     Ok(image::imageops::crop_imm(image.as_ref(), local_x, local_y, width, height).to_image())
+}
+
+/// Lo que comparten un monitor y una region, en coordenadas del escritorio virtual:
+/// `(x0, y0, x1, y1)`, o nada si no se tocan.
+fn interseccion(monitor: &MonitorInfo, region: &Rect) -> Option<(i32, i32, i32, i32)> {
+    let x0 = monitor.x.max(region.x);
+    let y0 = monitor.y.max(region.y);
+    let x1 = (monitor.x + monitor.width as i32).min(region.x + region.width as i32);
+    let y1 = (monitor.y + monitor.height as i32).min(region.y + region.height as i32);
+    (x1 > x0 && y1 > y0).then_some((x0, y0, x1, y1))
+}
+
+/// Una region que cruza pantallas, cosida a partir de cada una. Fila a fila, como
+/// `stitch_all`, y por la misma razon: las pantallas congeladas son opacas.
+fn coser_region(freezes: &[Freeze], region: Rect) -> Result<image::RgbaImage> {
+    let mut lienzo =
+        image::RgbaImage::from_pixel(region.width, region.height, image::Rgba([0, 0, 0, 0]));
+    let ancho_lienzo = region.width as usize * 4;
+    for f in freezes {
+        let Some((x0, y0, x1, y1)) = interseccion(&f.monitor, &region) else {
+            continue;
+        };
+        let (fw, fh) = f.image.dimensions();
+        // La imagen congelada deberia medir lo que el monitor, pero si no, se recorta a
+        // lo que haya en vez de leer fuera.
+        let sx = (x0 - f.monitor.x) as usize;
+        let sy = (y0 - f.monitor.y) as usize;
+        let ancho = ((x1 - x0) as usize).min((fw as usize).saturating_sub(sx));
+        let alto = ((y1 - y0) as usize).min((fh as usize).saturating_sub(sy));
+        let dx = (x0 - region.x) as usize;
+        let dy = (y0 - region.y) as usize;
+        let fila_origen = fw as usize * 4;
+        let origen = f.image.as_raw();
+        let destino = lienzo.as_mut();
+        for y in 0..alto {
+            let a = (dy + y) * ancho_lienzo + dx * 4;
+            let b = (sy + y) * fila_origen + sx * 4;
+            destino[a..a + ancho * 4].copy_from_slice(&origen[b..b + ancho * 4]);
+        }
+    }
+    Ok(lienzo)
 }
 
 /// El rectangulo que contiene todas las pantallas: el escritorio virtual entero.
@@ -516,6 +569,31 @@ mod tests {
             resultado.map(|i| primer_pixel(&i))
         );
     }
+    /// Arrastrar de una pantalla a la de al lado: la foto lleva las dos mitades, cada una
+    /// de su pantalla, y no solo la de la pantalla donde cae el centro.
+    #[test]
+    fn una_seleccion_entre_dos_pantallas_lleva_las_dos() {
+        let freezes = tres_pantallas();
+        let cosida =
+            crop_from_freeze(&freezes, Rect { x: 1820, y: 10, width: 300, height: 50 }).unwrap();
+        assert_eq!(cosida.dimensions(), (300, 50));
+        assert_eq!(primer_pixel(&cosida), [255, 0, 0], "la mitad izquierda es de la roja");
+        let p = cosida.get_pixel(299, 49).0;
+        assert_eq!([p[0], p[1], p[2]], [0, 255, 0], "la mitad derecha es de la verde");
+        let frontera = cosida.get_pixel(100, 0).0;
+        assert_eq!([frontera[0], frontera[1]], [0, 255], "el pixel 1920 ya es de la verde");
+    }
+
+    /// Lo que cae en el hueco de monitores desalineados queda transparente, no negro.
+    #[test]
+    fn una_seleccion_cosida_deja_transparente_el_hueco() {
+        let freezes = tres_pantallas_desalineadas();
+        let cosida =
+            crop_from_freeze(&freezes, Rect { x: 3740, y: 700, width: 200, height: 100 }).unwrap();
+        assert_eq!(cosida.get_pixel(0, 0).0, [0, 255, 0, 255]);
+        assert_eq!(cosida.get_pixel(199, 99).0[3], 0, "debajo de la bajita no hay pantalla");
+    }
+
     /// Un monitor mas bajo que los otros deja un hueco debajo que no es de nadie.
     fn tres_pantallas_desalineadas() -> Vec<Freeze> {
         // La tercera es de 1920x720 en vez de 1920x1080: deja 360 px de hueco debajo.

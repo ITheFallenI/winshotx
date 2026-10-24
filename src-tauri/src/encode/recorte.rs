@@ -77,6 +77,9 @@ impl Recorte {
         let (x1, y1, x2, y2) = self.ordenado();
         let (ancho, alto) = ((x2 - x1).max(f32::EPSILON), (y2 - y1).max(f32::EPSILON));
         Anotacion {
+            points: marca.points.iter().map(|p| [(p[0] - x1) / ancho, (p[1] - y1) / alto]).collect(),
+            stroke_width: marca.stroke_width.map(|grosor| grosor / ancho),
+            font_size: marca.font_size.map(|tamano| tamano / ancho),
             x1: (marca.x1 - x1) / ancho,
             y1: (marca.y1 - y1) / alto,
             x2: (marca.x2 - x1) / ancho,
@@ -92,6 +95,23 @@ impl Recorte {
 mod tests {
     use super::*;
 
+    #[test]
+    fn recortar_transforma_todo_el_trazo_y_conserva_su_grosor_en_pixeles() {
+        let recorte = Recorte { x1: 0.25, y1: 0.0, x2: 0.75, y2: 1.0 };
+        let mut trazo = marca(0.1, 0.2, 0.9, 0.2);
+        trazo.kind = "brush".into();
+        trazo.points = vec![[0.1, 0.2], [0.5, 0.8], [0.9, 0.2]];
+        trazo.stroke_width = Some(0.04);
+        let nueva = recorte.reencuadrar(&trazo);
+        assert!((nueva.points[0][0] + 0.3).abs() < 0.0001);
+        assert_eq!(nueva.points[1], [0.5, 0.8]);
+        assert!((nueva.points[2][0] - 1.3).abs() < 0.0001);
+        assert_eq!(nueva.stroke_width, Some(0.08));
+        let mut imagen = RgbaImage::from_pixel(50, 100, image::Rgba([255, 255, 255, 255]));
+        crate::encode::anotacion::pintar(&mut imagen, &[nueva]);
+        assert_eq!(imagen.get_pixel(25, 80).0, [239, 68, 68, 255]);
+    }
+
     fn imagen(ancho: u32, alto: u32) -> RgbaImage {
         RgbaImage::from_fn(ancho, alto, |x, y| {
             image::Rgba([(x % 256) as u8, (y % 256) as u8, 0, 255])
@@ -100,6 +120,9 @@ mod tests {
 
     fn marca(x1: f32, y1: f32, x2: f32, y2: f32) -> Anotacion {
         Anotacion {
+            points: Vec::new(),
+            stroke_width: None,
+            font_size: None,
             kind: "box".into(),
             x1,
             y1,

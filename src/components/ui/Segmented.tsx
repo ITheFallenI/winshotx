@@ -8,7 +8,7 @@ interface Props<T extends string | number> {
    * Lo usa la barra de abajo, donde no caben tres palabras por opcion pero el lector de
    * pantalla y el globo del raton tienen que seguir diciendo cual es cual.
    */
-  options: { value: T; label: string; icono?: ReactNode }[];
+  options: { value: T; label: string; icono?: ReactNode; leadingIcon?: ReactNode }[];
   onChange: (value: T) => void;
   /**
    * Cada botón tan ancho como su texto, en vez de todos iguales.
@@ -65,6 +65,7 @@ export function Segmented<T extends string | number>({
               : "text-apagado hover:text-titulo"
           }`}
         >
+          {option.leadingIcon && <span aria-hidden="true" className="me-1.5 shrink-0">{option.leadingIcon}</span>}
           {option.icono ?? option.label}
         </button>
       ))}

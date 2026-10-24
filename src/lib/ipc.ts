@@ -26,6 +26,8 @@ import type { Anotacion } from "./anotaciones";
 import type { Recorte } from "./recorte";
 
 /** Unica puerta hacia Rust: si un comando cambia de nombre, se cambia aqui. */
+export const openImage = (path: string | null = null, clipboard = false) =>
+  invoke<string | null>("open_image", { path, clipboard });
 
 export const overlayBootstrap = (monitorId: number) =>
   invoke<OverlayPayload>("overlay_bootstrap", { monitorId });
@@ -203,6 +205,13 @@ export const replaySave = () => invoke<void>("replay_save");
 /** Le quita la tecla Impr Pant a la Herramienta de Recortes, o se la devuelve. */
 export const usePrintScreen = (enabled: boolean) =>
   invoke<PrintScreenState>("use_print_screen", { enabled });
+
+/**
+ * Enciende o apaga el ayudante que lleva los atajos con privilegios, para que funcionen
+ * tambien con el Administrador de tareas delante. Pide permiso de administrador una vez.
+ */
+export const useAdminShortcuts = (enabled: boolean) =>
+  invoke<ShortcutStatus>("use_admin_shortcuts", { enabled });
 
 export const cacheStats = () => invoke<CacheStats>("cache_stats");
 

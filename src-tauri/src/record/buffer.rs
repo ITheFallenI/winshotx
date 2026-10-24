@@ -529,6 +529,7 @@ mod tests {
         assert!(frames[0].patch.is_none(), "el primero tiene que ser entero");
 
         let session = SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "prueba".into(),
             dir: dir.join("sesion"),
             region: Rect { x: 0, y: 0, width: ancho, height: alto },

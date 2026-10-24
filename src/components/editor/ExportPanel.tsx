@@ -6,6 +6,7 @@ import { formatBytes } from "../../lib/format";
 import {
   EVENTS,
   type ExportFormat,
+  type VideoCodec,
   type Background,
   type ExportProgress,
   type ExportResult,
@@ -42,7 +43,7 @@ const FONDOS: { id: Background; label: string; muestra: string }[] = [
 
 const FORMATS: { id: ExportFormat; label: string; hint: string }[] = [
   { id: "gif", label: "GIF", hint: "bucle, sin audio" },
-  { id: "mp4", label: "MP4", hint: "H.264 por hardware" },
+  { id: "mp4", label: "MP4", hint: "Vídeo H.264 o H.265 (HEVC)" },
   { id: "png", label: "PNG", hint: "el fotograma actual, sin perder nada" },
   { id: "jpg", label: "JPG", hint: "el fotograma actual, mucho más ligero" },
 ];
@@ -79,6 +80,7 @@ interface Props {
   onEstudio?: (estudio: Estudio) => void;
   /** Poner o quitar el marco de recorte desde aquí, con una proporción ya hecha. */
   onRecorte?: (recorte: Recorte | null) => void;
+  onSaved?: (signature: string) => void;
 }
 
 export function ExportPanel({
@@ -93,6 +95,7 @@ export function ExportPanel({
   saveDirectory,
   onEstudio,
   onRecorte,
+  onSaved,
 }: Props) {
   const t = useT();
   const [format, setFormat] = useState<ExportFormat>(() => {
@@ -102,6 +105,7 @@ export function ExportPanel({
     return "mp4";
   });
   const [useFfmpeg, setUseFfmpeg] = useState(false);
+  const [videoCodec, setVideoCodec] = useState<VideoCodec>(session.videoCodec ?? "h264");
   const [quality, setQuality] = useState(80);
   const [fps, setFps] = useState(Math.min(session.fps, 30));
   const [width, setWidth] = useState(session.region.width);
@@ -203,11 +207,13 @@ export function ExportPanel({
     // 0,13 bytes por pixel, que es donde sale este factor.
     if (format === "jpg") return w * h * (quality / 100) * 0.15;
     if (format === "gif") return w * h * (quality / 100) * 0.12 * fps * seconds;
-    const bitrate = 1_000_000 + (quality / 100) * 11_000_000;
-    return (bitrate / 8) * seconds;
-  }, [format, width, height, margen, quality, fps, inIndex, outIndex, session.fps, velocidad]);
+    const bitrate = Math.min(60_000_000, Math.max(400_000,
+      w * h * fps * (0.04 + (quality / 100) * 0.16)));
+    return (bitrate / 8) * seconds * (videoCodec === "h265" ? 0.6 : 1);
+  }, [format, videoCodec, width, height, margen, quality, fps, inIndex, outIndex, session.fps, velocidad]);
 
   const run = async (copyToClipboard: boolean, file: string | null = null) => {
+    const editSignature = JSON.stringify({ annotations: anotaciones, crop: recorte });
     // Sin esto, dos pulsaciones seguidas lanzan dos exportaciones a la vez.
     if (progress !== null) return;
     setError(null);
@@ -218,6 +224,7 @@ export function ExportPanel({
         sessionId: session.id,
         format,
         engine: useFfmpeg && hasFfmpeg ? "ffmpeg" : "native",
+        videoCodec: format === "mp4" ? videoCodec : "h264",
         from: esUnaFoto(format) ? currentIndex : inIndex,
         to: esUnaFoto(format) ? currentIndex : outIndex,
         width: Math.round(width),
@@ -246,6 +253,7 @@ export function ExportPanel({
         copyToClipboard,
       });
       setResult(res);
+      onSaved?.(editSignature);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -319,6 +327,34 @@ export function ExportPanel({
           ))}
         </div>
       </div>
+
+      {format === "mp4" && (
+        <div>
+          <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+            {t("Códec de vídeo")}
+          </span>
+          <div className="flex gap-1">
+            {(["h264", "h265"] as const).map((codec) => (
+              <button
+                key={codec}
+                type="button"
+                aria-pressed={videoCodec === codec}
+                onClick={() => setVideoCodec(codec)}
+                className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium ${
+                  videoCodec === codec ? "bg-blue-500 text-white" : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                }`}
+              >
+                {codec === "h264" ? "H.264" : "H.265 (HEVC)"}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-neutral-400">
+            {videoCodec === "h265"
+              ? t("Archivos más pequeños. Requiere compatibilidad con HEVC para codificar y reproducir.")
+              : t("Mayor compatibilidad para reproducir y compartir.")}
+          </p>
+        </div>
+      )}
 
       {format !== "png" && (
         <Slider
@@ -618,7 +654,7 @@ export function ExportPanel({
             ) : (
               <Zap className="size-3.5 text-amber-400" />
             )}
-            {useFfmpeg && hasFfmpeg ? "FFmpeg" : t("Nativo")}
+            {useFfmpeg && hasFfmpeg ? "FFmpeg" : t("Codificador integrado")}
           </span>
           <span className="tabular-nums">≈ {formatBytes(estimate)}</span>
         </div>

@@ -64,6 +64,23 @@ beforeEach(() => {
 });
 
 describe("dónde caen las capas de dibujar", () => {
+  it("el pincel se elige con 7 y cada trazo se deshace con Ctrl+Z", async () => {
+    const { container } = await abrir();
+    fireEvent.keyDown(window, { key: "7" });
+    expect(screen.getByRole("button", { name: "Pincel a mano alzada · 7" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Grueso" }));
+    const capa = container.querySelector('svg[viewBox="0 0 1000 1000"]')!;
+    vi.spyOn(capa, "getBoundingClientRect").mockReturnValue({
+      x:0,y:0,left:0,top:0,right:400,bottom:200,width:400,height:200,toJSON:()=>({}),
+    });
+    fireEvent.pointerDown(capa, { clientX: 40, clientY: 20 });
+    fireEvent.pointerMove(capa, { clientX: 200, clientY: 160 });
+    fireEvent.pointerUp(capa, { clientX: 360, clientY: 20 });
+    expect(capa.querySelectorAll("path")).toHaveLength(1);
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(capa.querySelectorAll("path")).toHaveLength(0);
+  });
+
   it("la imagen y las capas viven en una caja con la proporción de la captura", async () => {
     // La vista previa se ajusta con `object-contain`: en un hueco de otra proporción deja
     // franjas. Con las capas estiradas al hueco entero, sus coordenadas de 0 a 1 contaban

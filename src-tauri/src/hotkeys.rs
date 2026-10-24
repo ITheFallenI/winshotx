@@ -13,6 +13,14 @@ pub const PRINT_SCREEN: &str = "PrintScreen";
 /// atajos de la tecla Windows, y ni asi hasta que el usuario vuelve a iniciar sesion.
 pub const WIN_SHIFT_S: &str = "Super+Shift+KeyS";
 
+fn shortcut_asignado(texto: &str) -> std::result::Result<Option<Shortcut>, String> {
+    if texto.trim().is_empty() {
+        Ok(None)
+    } else {
+        texto.trim().parse::<Shortcut>().map(Some).map_err(|e| e.to_string())
+    }
+}
+
 /// Que atajos han quedado activos de verdad. Si otra aplicacion ya tiene cogida la
 /// combinacion, el registro falla y el usuario tiene derecho a enterarse.
 #[derive(Debug, Clone, Copy, Default, Serialize)]
@@ -57,6 +65,30 @@ fn on_edit(app: &AppHandle, _shortcut: &Shortcut, event: ShortcutEvent) {
     }
 }
 
+/// Lo que hace un atajo que ha saltado en el ayudante de administrador. Son las mismas
+/// acciones que las de los manejadores del plugin, por numero (ver `atajos_admin::accion`).
+pub fn disparar(app: &AppHandle, id: u32) {
+    use crate::atajos_admin::accion;
+    let resultado = match id {
+        accion::CAPTURA | accion::IMPR_PANT | accion::WIN_SHIFT_S => {
+            windows_mgr::open_overlays(app, OverlayIntent::Capture)
+        }
+        accion::EDITOR => windows_mgr::open_overlays(app, OverlayIntent::Edit),
+        accion::GRABAR => {
+            if app.state::<AppState>().is_recording() {
+                crate::recorder::stop(app).map(|_| ())
+            } else {
+                windows_mgr::open_overlays(app, OverlayIntent::Record)
+            }
+        }
+        accion::REPETIR => crate::replay::save(app).map(|_| ()),
+        _ => Ok(()),
+    };
+    if let Err(error) = resultado {
+        eprintln!("[atajo] el atajo {id} del ayudante ha fallado: {error}");
+    }
+}
+
 /// Registra los atajos globales y devuelve cuales han quedado puestos de verdad.
 ///
 /// Se sueltan uno a uno los que pedimos la vez anterior, en vez de llamar a
@@ -86,12 +118,25 @@ pub fn register(app: &AppHandle, settings: &Settings) -> ShortcutStatus {
         }
     }
 
+    // Con el ayudante de administrador encendido y en marcha, los atajos son suyos: asi
+    // funcionan tambien con el Administrador de tareas delante. Si no esta, se registran
+    // aqui como siempre y el ayudante los reclama en cuanto arranca.
+    if settings.admin_shortcuts && crate::atajos_admin::disponible() {
+        if let Some(status) = crate::atajos_admin::registrar(app, settings) {
+            *state.shortcuts.write() = status;
+            return status;
+        }
+    } else {
+        crate::atajos_admin::despedir();
+    }
+
     let mut status = ShortcutStatus::default();
     let mut puestos: Vec<Shortcut> = Vec::new();
 
-    match settings.capture_shortcut.parse::<Shortcut>() {
+    match shortcut_asignado(&settings.capture_shortcut) {
+        Ok(None) => {},
         Err(error) => eprintln!("atajo de captura invalido: {error}"),
-        Ok(shortcut) => {
+        Ok(Some(shortcut)) => {
             if let Err(error) = manager.on_shortcut(shortcut, on_capture) {
                 eprintln!(
                     "el atajo de captura {} no se ha podido registrar: {error}",
@@ -106,9 +151,10 @@ pub fn register(app: &AppHandle, settings: &Settings) -> ShortcutStatus {
 
     // La captura que va derecha al editor. Si la combinacion no se consigue, se dice y
     // se sigue: perder esta tecla no puede dejar sin capturar a nadie.
-    match settings.edit_shortcut.parse::<Shortcut>() {
+    match shortcut_asignado(&settings.edit_shortcut) {
+        Ok(None) => {},
         Err(error) => eprintln!("atajo del editor invalido: {error}"),
-        Ok(shortcut) => {
+        Ok(Some(shortcut)) => {
             if puestos.contains(&shortcut) {
                 eprintln!(
                     "[atajo] {} ya esta cogida por otro atajo de winshotx",
@@ -145,9 +191,10 @@ pub fn register(app: &AppHandle, settings: &Settings) -> ShortcutStatus {
 
     }
 
-    match settings.record_shortcut.parse::<Shortcut>() {
+    match shortcut_asignado(&settings.record_shortcut) {
+        Ok(None) => {},
         Err(error) => eprintln!("atajo de grabacion invalido: {error}"),
-        Ok(shortcut) => {
+        Ok(Some(shortcut)) => {
             let resultado = manager.on_shortcut(shortcut, |app, _shortcut, event| {
                 if event.state() != ShortcutState::Pressed {
                     return;
@@ -175,9 +222,10 @@ pub fn register(app: &AppHandle, settings: &Settings) -> ShortcutStatus {
 
     // La tecla de los ultimos segundos solo existe mientras el anillo esta encendido.
     if settings.replay_enabled {
-        match settings.replay_shortcut.parse::<Shortcut>() {
+        match shortcut_asignado(&settings.replay_shortcut) {
+            Ok(None) => {},
             Err(error) => eprintln!("atajo de los ultimos segundos invalido: {error}"),
-            Ok(shortcut) => {
+            Ok(Some(shortcut)) => {
                 let resultado = manager.on_shortcut(shortcut, |app, _shortcut, event| {
                     if event.state() != ShortcutState::Pressed {
                         return;
@@ -250,6 +298,14 @@ pub fn register(app: &AppHandle, settings: &Settings) -> ShortcutStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vacio_es_sin_asignar_y_no_un_error_o_un_atajo_por_defecto() {
+        assert_eq!(shortcut_asignado("").unwrap(), None);
+        assert_eq!(shortcut_asignado("  ").unwrap(), None);
+        assert_eq!(shortcut_asignado(" F2 ").unwrap(), Some("F2".parse().unwrap()));
+        assert!(shortcut_asignado("not-a-shortcut").is_err());
+    }
 
     #[test]
     fn las_teclas_de_funcion_no_necesitan_modificadores() {

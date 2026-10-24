@@ -1,4 +1,4 @@
-import { Compass, Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { Segmented } from "../ui/Segmented";
 import { aplicarIdioma, useT } from "../../lib/i18n";
 import { aplicarTema } from "../../lib/tema";
@@ -10,7 +10,6 @@ interface Props {
   patch: (cambio: Partial<Settings>) => void;
   version: string;
   recienActualizado: boolean;
-  onTour: () => void;
 }
 
 /**
@@ -25,7 +24,7 @@ interface Props {
  * Esto es el atajo, no el sitio donde viven: es como el menú de la bandeja de VoCript, que
  * repite el modelo y el idioma que también están en sus ajustes.
  */
-export function BarraRapida({ settings, patch, version, recienActualizado, onTour }: Props) {
+export function BarraRapida({ settings, patch, version, recienActualizado }: Props) {
   const t = useT();
   const { fase, mirar, instalar, texto, alDia } = useActualizacion(version, recienActualizado);
 
@@ -90,15 +89,6 @@ export function BarraRapida({ settings, patch, version, recienActualizado, onTou
         options={soltar}
         onChange={(v) => patch({ captureFlow: v })}
       />
-      <button
-        type="button"
-        onClick={onTour}
-        title={t("Tour de los ajustes")}
-        aria-label={t("Tour de los ajustes")}
-        className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-apagado transition-colors hover:bg-realce hover:text-titulo"
-      >
-        <Compass className="size-3.5" /> {t("Tour")}
-      </button>
 
       {/* Lo de actualizar vive aquí y ya no en la sección «La app»: es un estado que hay
           que poder mirar de un vistazo, no un ajuste que se va a buscar. */}

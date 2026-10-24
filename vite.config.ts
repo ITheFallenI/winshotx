@@ -39,6 +39,7 @@ export default defineConfig({
         cuenta: resolve(__dirname, "cuenta.html"),
         pin: resolve(__dirname, "pin.html"),
         "tray-menu": resolve(__dirname, "tray-menu.html"),
+        gallery: resolve(__dirname, "gallery.html"),
       },
     },
   },

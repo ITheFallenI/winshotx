@@ -1380,3 +1380,28 @@ se graba un area sin volver a mirar donde cae.
 No se arregla moviendola, porque no hay sitio libre: se le dice a Windows que no la grabe
 (`window_style::fuera_de_la_captura`, el mismo `WDA_EXCLUDEFROMCAPTURE` del menu de la bandeja).
 Quien esta delante la ve y la pulsa igual, y en el video sale lo que hay detras.
+
+## 50. `convertFileSrc` no da permiso para leer las capturas de Imagenes
+
+El menu de la bandeja encontraba las ultimas capturas y podia copiarlas, pero sus cuatro
+miniaturas salian como imagenes rotas. `convertFileSrc` solo construye la URL: el protocolo
+`asset` comprueba aparte su scope, que solo incluye la cache de winshotx. Los PNG de Imagenes
+o de una carpeta elegida por el usuario quedaban fuera.
+
+`ultimas_capturas` concede `asset_protocol_scope().allow_file` a cada archivo que devuelve,
+antes de entregarlo al frontend. No hace falta abrir toda la carpeta ni fijar Imagenes en
+la configuracion. Una prueba de React con IPC simulado no comprueba este permiso: hay que
+cargar las URL en el WebView real y comprobar que las imagenes tienen ancho y alto.
+
+## 51. El menu de la bandeja no debe mostrarse antes de tener contenido
+
+El primer clic ensennaba la ventana de 300 px antes de que llegaran el estado y el tema.
+El efecto de medida media entonces el div vacio y lo encogia a 80 px, y lo agrandaba otra
+vez cuando React pintaba el menu. Ademas, cualquier `Focused(false)` lo escondia al instante,
+incluso si era un aviso atrasado del cambio de foco al abrirlo.
+
+La ventana nace oculta y sin pedir foco. El primer clic queda pendiente hasta que el menu
+con contenido comunica una medida positiva. Un segundo clic puede cancelar esa apertura;
+una medida tardia no la reabre. Al perder foco se espera 75 ms y se comprueba el foco ACTUAL
+y la misma apertura antes de cerrar. Una ventana ya escondida no activa el bloqueo de 300 ms.
+Las medidas, el foco y las acciones del menu se ejecutan en el hilo principal.

@@ -19,6 +19,29 @@ pub enum CaptureFlow {
     Instant,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TrayClickAction {
+    Capture,
+    Record,
+    Gallery,
+    Settings,
+    CaptureFolder,
+    #[default]
+    #[serde(other)]
+    LatestFolder,
+}
+
+impl TrayClickAction {
+    pub fn action_id(self) -> &'static str {
+        match self {
+            Self::LatestFolder => "latest-folder", Self::Capture => "capture",
+            Self::Record => "record", Self::Gallery => "gallery", Self::Settings => "settings",
+            Self::CaptureFolder => "folder",
+        }
+    }
+}
+
 
 /// En que idioma habla la aplicacion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -69,6 +92,7 @@ pub struct Settings {
     #[serde(default = "atajo_de_editar")]
     pub edit_shortcut: String,
     pub save_directory: String,
+    pub tray_click_action: TrayClickAction,
     pub capture_flow: CaptureFlow,
     /// Con el flujo al vuelo, guardar tambien cada captura en la carpeta, ademas de
     /// copiarla. Apagado de fabrica: «se copia sola» siempre ha sido solo copiar.
@@ -91,6 +115,8 @@ pub struct Settings {
     #[serde(default)]
     pub highlight_keys: bool,
     pub fps: u32,
+    /// Elegido antes de grabar; cada sesion conserva su propia eleccion al empezar.
+    pub video_codec: crate::encode::mp4::VideoCodec,
     /// Grabar siempre la pantalla en un anillo, para poder quedarse con lo ultimo que paso.
     ///
     /// Cuesta disco y maquina todo el rato, asi que viene apagado y se enciende a mano:
@@ -141,6 +167,10 @@ pub struct Settings {
     /// la aplicacion que le quita algo al usuario (Win+S, la busqueda), asi que no puede ir
     /// de propina con otra cosa.
     pub take_win_shift_s: bool,
+    /// Los atajos los lleva un ayudante con privilegios, para que funcionen tambien con
+    /// una ventana de administrador delante (el Administrador de tareas). Ver
+    /// `atajos_admin`.
+    pub admin_shortcuts: bool,
     /// Falso hasta que se termina la bienvenida. Es lo que decide si al abrir la
     /// ventana se ven los cuatro pasos o directamente los ajustes.
     pub onboarded: bool,
@@ -166,6 +196,7 @@ impl Default for Settings {
             replay_shortcut: atajo_de_repeticion(),
             edit_shortcut: atajo_de_editar(),
             save_directory: default_save_dir(),
+            tray_click_action: TrayClickAction::LatestFolder,
             capture_flow: CaptureFlow::Toolbar,
             instant_save: false,
             theme: Theme::Sistema,
@@ -178,6 +209,7 @@ impl Default for Settings {
             highlight_clicks: false,
             highlight_keys: false,
             fps: 30,
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             replay_enabled: false,
             replay_seconds: segundos_de_repeticion(),
             replay_screen: None,
@@ -192,6 +224,7 @@ impl Default for Settings {
             hide_desktop_icons: false,
             print_screen_capture: false,
             take_win_shift_s: false,
+            admin_shortcuts: false,
             onboarded: false,
             last_version: None,
             snipping_key_restore: None,
@@ -300,6 +333,47 @@ pub fn save(app: &AppHandle, settings: &Settings) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tray_click_defaults_to_latest_folder_and_remembers_each_choice() {
+        let old: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(old.tray_click_action, TrayClickAction::LatestFolder);
+        for action in [TrayClickAction::LatestFolder, TrayClickAction::Capture, TrayClickAction::Record,
+            TrayClickAction::Gallery, TrayClickAction::Settings, TrayClickAction::CaptureFolder] {
+            let chosen = Settings { tray_click_action: action, ..old.clone() };
+            let restored: Settings = serde_json::from_str(&serde_json::to_string(&chosen).unwrap()).unwrap();
+            assert_eq!(restored.tray_click_action, action);
+        }
+        let future: Settings = serde_json::from_str(r#"{"trayClickAction":"futureChoice","captureShortcut":"F2"}"#).unwrap();
+        assert_eq!(future.tray_click_action, TrayClickAction::LatestFolder);
+        assert_eq!(future.capture_shortcut, "F2");
+    }
+
+    #[test]
+    fn el_codec_se_recuerda_y_los_ajustes_antiguos_siguen_en_h264() {
+        use crate::encode::mp4::VideoCodec;
+        let antiguos: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(antiguos.video_codec, VideoCodec::H264);
+        let elegidos = Settings { video_codec: VideoCodec::Hevc, ..antiguos };
+        let vuelta: Settings = serde_json::from_str(&serde_json::to_string(&elegidos).unwrap()).unwrap();
+        assert_eq!(vuelta.video_codec, VideoCodec::Hevc);
+    }
+
+    #[test]
+    fn los_atajos_vacios_se_conservan_al_reabrir() {
+        let settings = Settings {
+            capture_shortcut: String::new(),
+            edit_shortcut: String::new(),
+            record_shortcut: String::new(),
+            replay_shortcut: String::new(),
+            ..Settings::default()
+        };
+        let releidos: Settings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert!(releidos.capture_shortcut.is_empty());
+        assert!(releidos.edit_shortcut.is_empty());
+        assert!(releidos.record_shortcut.is_empty());
+        assert!(releidos.replay_shortcut.is_empty());
+    }
 
     #[test]
     fn f2_se_guarda_y_se_relee_sin_cambiar_los_otros_atajos() {

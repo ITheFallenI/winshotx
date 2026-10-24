@@ -767,7 +767,9 @@ struct Encargo {
 fn servir(app: &AppHandle, encargo: Encargo) -> Result<SessionInfo> {
     let state = app.state::<AppState>();
     let id = uuid::Uuid::new_v4().simple().to_string()[..10].to_string();
-    let session = montar(state.session_dir(&id), id.clone(), encargo)?;
+    let mut session = montar(state.session_dir(&id), id.clone(), encargo)?;
+    session.video_codec = state.settings.read().video_codec;
+    session.persist()?;
 
     let info = SessionInfo::from(&session);
     state.sessions.write().insert(id.clone(), session);
@@ -956,6 +958,7 @@ fn montar(dir: std::path::PathBuf, id: String, encargo: Encargo) -> Result<Sessi
     };
 
     let session = SessionData {
+        video_codec: crate::encode::mp4::VideoCodec::H264,
         id,
         dir,
         region: encargo.region,
@@ -1278,6 +1281,7 @@ mod tests {
             }
             let frames = cache.finish(cuantos as u64 * 33, 30).unwrap();
             let mut session = SessionData {
+                video_codec: crate::encode::mp4::VideoCodec::H264,
                 id: format!("corta-{cuantos}"),
                 dir: dir.clone(),
                 region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },
@@ -1345,6 +1349,7 @@ mod tests {
         std::fs::write(dir.join("audio.pcm"), &pcm).unwrap();
 
         let session = SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "con-sonido".into(),
             dir: dir.clone(),
             region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },
@@ -1455,6 +1460,7 @@ mod tests {
         println!("\n[cache] {} fotogramas de {ancho}x{alto}", frames.len());
 
         let mut session = SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "bench-previa".into(),
             dir: dir.clone(),
             region: crate::capture::Rect { x: 0, y: 0, width: ancho, height: alto },

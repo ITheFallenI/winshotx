@@ -117,6 +117,8 @@ pub struct PunteroGrabado {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionData {
+    #[serde(default)]
+    pub video_codec: crate::encode::mp4::VideoCodec,
     pub id: String,
     pub dir: PathBuf,
     pub region: Rect,
@@ -755,6 +757,7 @@ mod tests {
 
     fn sesion_de(dir: &Path, frames: Vec<FrameEntry>, width: u32, height: u32) -> SessionData {
         SessionData {
+            video_codec: crate::encode::mp4::VideoCodec::H264,
             id: "test".into(),
             dir: dir.to_path_buf(),
             region: Rect {
@@ -841,6 +844,33 @@ mod tests {
         });
         assert_eq!(chico.en(3).unwrap().dimensions(), (32, 20));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn gif_read_ahead_handles_single_frame_and_sparse_palette_then_rewinds() {
+        use crate::encode::gif::{self, GifOptions};
+        for count in [1usize, 100] {
+            let dir = carpeta("gif-two-passes");
+            let (width, height) = (32, 24);
+            let mut cache = FrameCache::new(&dir).unwrap();
+            for i in 0..count {
+                cache.push_rgba(&pantalla(width, height, i as u32), width, height, i as u64 * 33).unwrap();
+            }
+            let frames = cache.finish(count as u64 * 33, 30).unwrap();
+            let session = sesion_de(&dir, frames, width, height);
+            let indices: Vec<_> = (0..session.frames.len()).collect();
+            let mut reader = LectorPorDelante::nuevo(session, gif::read_order(&indices));
+            let path = dir.join("result.gif");
+            gif::encode(&indices, &vec![33; indices.len()], &mut |i| reader.en(i), &path,
+                &GifOptions { width, height, quality: 70, loop_forever: true }, |_,_,_| {}).unwrap();
+            drop(reader);
+            let mut decoder = ::gif::DecodeOptions::new().read_info(File::open(&path).unwrap()).unwrap();
+            assert_eq!((decoder.width(), decoder.height()), (width as u16, height as u16));
+            let mut decoded = 0;
+            while decoder.read_next_frame().unwrap().is_some() { decoded += 1; }
+            assert!(decoded > 0);
+            std::fs::remove_dir_all(dir).unwrap();
+        }
     }
 
     /// Dos cambios lejanos en el mismo fotograma se guardan como dos zonas, se leen igual

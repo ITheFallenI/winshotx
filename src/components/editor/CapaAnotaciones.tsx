@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { Anotacion, Herramienta } from "../../lib/anotaciones";
+import { annotationBounds, hitAnnotation, moveAnnotation, resizeAnnotation, type Point } from "../../lib/annotationGeometry";
 
 /**
  * La capa donde se dibuja encima de la vista previa.
@@ -22,11 +23,36 @@ interface Props {
   onAnadir: (anotacion: Anotacion) => void;
   /** Lo que se escribe cuando la herramienta es el texto. */
   texto: string;
+  grosorPincel?: number;
+  anchoVista?: number;
+  aspect?: number;
+  seleccionada?: number | null;
+  onSeleccionar?: (index: number | null) => void;
+  onCambiar?: (index: number, annotation: Anotacion) => void;
+  fontSize?: number;
 }
 
-export function CapaAnotaciones({ herramienta, color, anotaciones, onAnadir, texto }: Props) {
+export function CapaAnotaciones({ herramienta, color, anotaciones, onAnadir, texto, grosorPincel = 0.006, anchoVista = 1000,
+  aspect = 1, seleccionada = null, onSeleccionar, onCambiar, fontSize = 1 / 42 }: Props) {
   const marco = useRef<SVGSVGElement>(null);
   const [dibujando, setDibujando] = useState<Anotacion | null>(null);
+  const actual = useRef<Anotacion | null>(null);
+  const puntero = useRef<number | null>(null);
+  const gesto = useRef<{ index: number; original: Anotacion; start: Point; corner?: string } | null>(null);
+  const [edicion, setEdicion] = useState<{ index: number; annotation: Anotacion } | null>(null);
+  const ultimaEdicion = useRef<Anotacion | null>(null);
+  const actualizar = (marca: Anotacion | null) => {
+    actual.current = marca;
+    setDibujando(marca);
+  };
+  useLayoutEffect(() => {
+    actual.current = null;
+    puntero.current = null;
+    setDibujando(null);
+    gesto.current = null;
+    ultimaEdicion.current = null;
+    setEdicion(null);
+  }, [herramienta]);
 
   /** El punto del ratón, en tanto por uno sobre la capa. */
   const punto = (e: React.PointerEvent): [number, number] => {
@@ -39,12 +65,26 @@ export function CapaAnotaciones({ herramienta, color, anotaciones, onAnadir, tex
   };
 
   const empezar = (e: React.PointerEvent) => {
-    if (!herramienta) return;
+    if (!herramienta || e.button !== 0 || actual.current) return;
     e.preventDefault();
     const [x, y] = punto(e);
+    if (herramienta === "select") {
+      const caja = marco.current!.getBoundingClientRect();
+      const corner = (e.target as SVGElement).dataset.corner;
+      let index = corner && seleccionada !== null ? seleccionada : -1;
+      if (!corner) for (let i = anotaciones.length - 1; i >= 0; i--) {
+        if (hitAnnotation(anotaciones[i], [x, y], caja.width, caja.height)) { index = i; break; }
+      }
+      onSeleccionar?.(index < 0 ? null : index);
+      if (index < 0) return;
+      gesto.current = { index, original: anotaciones[index], start: [x, y], corner };
+      puntero.current = e.pointerId;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      return;
+    }
     // El texto no se arrastra: se pone donde se pulsa y se acabó.
     if (herramienta === "text") {
-      if (texto.trim()) onAnadir({ kind: "text", x1: x, y1: y, x2: x, y2: y, color, text: texto });
+      if (texto.trim()) onAnadir({ kind: "text", x1: x, y1: y, x2: x, y2: y, color, text: texto, fontSize });
       return;
     }
     // Y el paso tampoco, y además se numera solo. Numerar a mano es justo lo que se olvida
@@ -54,43 +94,111 @@ export function CapaAnotaciones({ herramienta, color, anotaciones, onAnadir, tex
       onAnadir({ kind: "step", x1: x, y1: y, x2: x, y2: y, color, text: String(siguiente) });
       return;
     }
-    setDibujando({ kind: herramienta, x1: x, y1: y, x2: x, y2: y, color, text: "" });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    puntero.current = e.pointerId;
+    actualizar({ kind: herramienta, x1: x, y1: y, x2: x, y2: y, color, text: "",
+      ...(herramienta === "brush" ? { points: [[x, y]], strokeWidth: grosorPincel } : {}) });
   };
 
   const mover = (e: React.PointerEvent) => {
-    if (!dibujando) return;
+    const editando = gesto.current;
+    if (editando && e.pointerId === puntero.current) {
+      const [x, y] = punto(e);
+      const { original, start, corner, index } = editando;
+      let annotation: Anotacion;
+      if (corner) {
+        const b = annotationBounds(original, aspect);
+        const left = corner.includes("w") ? Math.min(x, b.x + b.width - 0.005) : b.x;
+        const top = corner.includes("n") ? Math.min(y, b.y + b.height - 0.005) : b.y;
+        const right = corner.includes("e") ? Math.max(x, b.x + 0.005) : b.x + b.width;
+        const bottom = corner.includes("s") ? Math.max(y, b.y + 0.005) : b.y + b.height;
+        annotation = resizeAnnotation(original, { x: left, y: top, width: right - left, height: bottom - top }, aspect);
+      } else annotation = moveAnnotation(original, x - start[0], y - start[1], aspect);
+      ultimaEdicion.current = annotation;
+      setEdicion({ index, annotation });
+      return;
+    }
+    const marca = actual.current;
+    if (!marca || e.pointerId !== puntero.current) return;
     const [x, y] = punto(e);
-    setDibujando({ ...dibujando, x2: x, y2: y });
+    if (marca.kind === "brush") {
+      const points = marca.points ?? [];
+      const ultimo = points.at(-1);
+      if (ultimo?.[0] === x && ultimo?.[1] === y) return;
+      actualizar({ ...marca, x2: x, y2: y, points: [...points, [x, y]] });
+    } else {
+      actualizar({ ...marca, x2: x, y2: y });
+    }
   };
 
   const soltar = () => {
+    if (gesto.current) {
+      if (ultimaEdicion.current) onCambiar?.(gesto.current.index, ultimaEdicion.current);
+      gesto.current = null;
+      ultimaEdicion.current = null;
+      setEdicion(null);
+      puntero.current = null;
+      return;
+    }
+    const dibujando = actual.current;
     if (!dibujando) return;
     // Un clic sin arrastre no es una marca, es un clic: sin esto, cada vez que alguien
     // pulsa sin querer queda un rectángulo de cero píxeles imposible de ver y de borrar.
     const ancho = Math.abs(dibujando.x2 - dibujando.x1);
     const alto = Math.abs(dibujando.y2 - dibujando.y1);
-    if (ancho > 0.01 || alto > 0.01) onAnadir(dibujando);
-    setDibujando(null);
+    if (dibujando.kind === "brush" || ancho > 0.01 || alto > 0.01) onAnadir(dibujando);
+    actualizar(null);
+    puntero.current = null;
   };
 
-  const todas = dibujando ? [...anotaciones, dibujando] : anotaciones;
+  const todas = (dibujando ? [...anotaciones, dibujando] : anotaciones)
+    .map((a, i) => edicion?.index === i ? edicion.annotation : a);
+  const elegida = seleccionada === null ? null : todas[seleccionada];
+  const limites = elegida ? annotationBounds(elegida, aspect) : null;
 
   return (
     <svg
       ref={marco}
       onPointerDown={empezar}
       onPointerMove={mover}
-      onPointerUp={soltar}
-      onPointerLeave={soltar}
+      onPointerUp={(e) => {
+        if (e.pointerId !== puntero.current) return;
+        if (actual.current?.kind === "brush") mover(e);
+        soltar();
+      }}
+      onPointerCancel={(e) => {
+        if (e.pointerId !== puntero.current) return;
+        actualizar(null);
+        gesto.current = null;
+        ultimaEdicion.current = null;
+        setEdicion(null);
+        puntero.current = null;
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerId === puntero.current && !e.currentTarget.hasPointerCapture?.(e.pointerId)) soltar();
+      }}
       viewBox="0 0 1000 1000"
       preserveAspectRatio="none"
-      className={`absolute inset-0 size-full ${
-        herramienta ? "cursor-crosshair" : "pointer-events-none"
+      className={`absolute inset-0 size-full touch-none ${
+        herramienta === "select" ? "cursor-default" : herramienta ? "cursor-crosshair" : "pointer-events-none"
       }`}
     >
       {todas.map((a, i) => (
-        <Marca key={i} anotacion={a} />
+        <g key={i} pointerEvents="none"><Marca anotacion={a} anchoVista={anchoVista} aspect={aspect} /></g>
       ))}
+      {herramienta === "select" && limites && (
+        <g data-testid="annotation-selection">
+          <rect x={limites.x * 1000} y={limites.y * 1000} width={limites.width * 1000} height={limites.height * 1000}
+            fill="none" stroke="#0a9bff" strokeWidth={1.5} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" pointerEvents="none" />
+          {elegida?.kind !== "step" && (["nw", "ne", "sw", "se"] as const).map(corner => {
+            const x = (limites.x + (corner.includes("e") ? limites.width : 0)) * 1000;
+            const y = (limites.y + (corner.includes("s") ? limites.height : 0)) * 1000;
+            return <rect key={corner} data-corner={corner} x={x - 5} y={y - 5} width={10} height={10}
+              fill="white" stroke="#0a9bff" strokeWidth={1} vectorEffect="non-scaling-stroke"
+              style={{ cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize" }} />;
+          })}
+        </g>
+      )}
     </svg>
   );
 }
@@ -110,12 +218,20 @@ function metido(v: number, radio: number): number {
 }
 
 /** Una marca dibujada, en el sistema de 1000 x 1000 del SVG. */
-function Marca({ anotacion: a }: { anotacion: Anotacion }) {
+function Marca({ anotacion: a, anchoVista, aspect }: { anotacion: Anotacion; anchoVista: number; aspect: number }) {
   const [x1, y1, x2, y2] = [a.x1 * 1000, a.y1 * 1000, a.x2 * 1000, a.y2 * 1000];
   const [izq, arr] = [Math.min(x1, x2), Math.min(y1, y2)];
   const [ancho, alto] = [Math.abs(x2 - x1), Math.abs(y2 - y1)];
 
   switch (a.kind) {
+    case "brush": {
+      const points = a.points ?? [];
+      if (!points.length) return null;
+      const d = points.map(([x, y], i) => `${i ? "L" : "M"} ${x * 1000} ${y * 1000}`).join(" ") +
+        (points.length === 1 ? " l 0.001 0" : "");
+      return <path d={d} fill="none" stroke={a.color} strokeWidth={(a.strokeWidth ?? 0.006) * anchoVista}
+        strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />;
+    }
     case "box":
       return (
         <rect
@@ -170,7 +286,8 @@ function Marca({ anotacion: a }: { anotacion: Anotacion }) {
       );
     case "text":
       return (
-        <text x={x1} y={y1} fill={a.color} fontSize={34} fontWeight={600} dominantBaseline="hanging">
+        <text transform={`translate(${x1} ${y1}) scale(1 ${aspect})`} fill={a.color}
+          fontSize={(a.fontSize ?? 1 / 42) * 1000} fontFamily="Segoe UI, sans-serif" fontWeight={600} dominantBaseline="hanging">
           {a.text}
         </text>
       );

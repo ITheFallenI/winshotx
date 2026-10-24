@@ -6,10 +6,52 @@
  * mas, este archivo copiado y traducido, sin tocar ni un componente.
  */
 export const EN: Record<string, string> = {
+  "Galería de capturas": "Capture gallery",
+  "Seleccionar anotación": "Select annotation",
+  "Tamaño del texto": "Text size",
+  "Rehacer (Ctrl+Y)": "Redo (Ctrl+Y)",
+  "Eliminar anotación seleccionada": "Delete selected annotation",
+  "Abrir imagen (Ctrl+O)": "Open image (Ctrl+O)",
+  "Pegar imagen (Ctrl+V)": "Paste image (Ctrl+V)",
+  "Abrir imagen…": "Open image…",
+  "Editar una imagen existente": "Edit an existing image",
+  "¿Descartar los cambios sin guardar?": "Discard unsaved changes?",
+  "Guarda la imagen o el vídeo para conservar tus cambios.": "Save the image or video to keep your changes.",
+  "Seguir editando": "Keep editing",
+  "Descartar cambios": "Discard changes",
+
+  "Pincel a mano alzada": "Freehand brush",
+  "Grosor del pincel": "Brush thickness",
+  "Fino": "Thin",
+  "Medio": "Medium",
+  "Grueso": "Thick",
+  "Antes de grabar": "Before recording",
+  "Elige el códec antes de empezar. Se recuerda para las próximas grabaciones y se usa al guardar el vídeo. Puedes cambiarlo después en el editor.": "Choose the codec before you start. It is remembered for future recordings and used when saving the video. You can change it later in the editor.",
+  "Resolución original": "Original resolution",
+  "Codificador integrado": "Built-in encoder",
+  "Vídeo H.264 o H.265 (HEVC)": "H.264 or H.265 (HEVC) video",
+  "Códec de vídeo": "Video codec",
+  "Archivos más pequeños. Requiere compatibilidad con HEVC para codificar y reproducir.": "Smaller files. Requires HEVC support for encoding and playback.",
+  "Mayor compatibilidad para reproducir y compartir.": "More compatible for playback and sharing.",
+  "Sin asignar": "Unassigned",
+  "Quitar atajo": "Clear shortcut",
+  "Sin atajo de teclado. Usa el menú de la bandeja o la barra de captura.": "No keyboard shortcut. Use the tray menu or capture toolbar.",
   // La cabecera y las cuatro secciones
   Versión: "Version",
   Capturar: "Capture",
   Grabar: "Record",
+  "Galería": "Gallery",
+  "Teclas": "Keys",
+  "Icono de la bandeja": "Tray icon",
+  "Todas las secciones, aquí": "All your sections, here",
+  "El icono a tu manera": "Your tray icon, your choice",
+  "Clic izquierdo": "Left click",
+  "Carpeta de la última captura": "Open latest capture folder",
+  "Abrir la carpeta de capturas": "Open captures folder",
+  "Abrir la galería": "Open Gallery",
+  "Abrir los ajustes": "Open Settings",
+  "Elige qué hace un clic izquierdo en el icono de winshotx. El botón derecho abre el menú.": "Choose what left-clicking the winshotx icon does. Right-click opens the menu.",
+  "Abre la ubicación del último archivo guardado, incluso con Guardar como. Antes de guardar, abre la carpeta de capturas.": "Opens the last saved file's folder, including Save As locations. Before your first save, opens the captures folder.",
   "Teclas de Windows": "Windows keys",
   "La app": "The app",
   "Secciones de ajustes": "Settings sections",
@@ -96,7 +138,6 @@ export const EN: Record<string, string> = {
   "Elegir dónde guardar (Ctrl+Mayús+S)": "Choose where to save (Ctrl+Shift+S)",
   "Elegir dónde guardar": "Choose where to save",
   "fotogramas por segundo": "frames per second",
-  Nativa: "Native",
   "abre el editor con lo último, sin dejar de grabar":
     "opens the editor with the last bit, and keeps recording",
 
@@ -104,6 +145,15 @@ export const EN: Record<string, string> = {
   "Las teclas de captura de Windows": "Windows' own capture keys",
   "Impr Pant": "Print Screen",
   "Usar también Impr Pant": "Use Print Screen too",
+  "Sobre ventanas de administrador": "Over admin windows",
+  "Con el Administrador de tareas u otra ventana de administrador delante, Windows no deja que los atajos lleguen a winshotx. Esto los pone en manos de un pequeño ayudante con permisos de administrador. Windows pide permiso una vez al encenderlo y otra al apagarlo.": "With Task Manager or another admin window in front, Windows does not let shortcuts reach winshotx. This hands them to a small helper with admin rights. Windows asks for permission once when you turn it on and once when you turn it off.",
+  "esperando el permiso de Windows…": "waiting for Windows permission…",
+  "los atajos funcionan delante de todo": "shortcuts work in front of everything",
+  "no funcionan con una ventana de administrador delante": "they don't work with an admin window in front",
+  "Atajos sobre ventanas de administrador": "Shortcuts over admin windows",
+  "se ha cancelado el permiso de administrador": "the admin permission was cancelled",
+  "no se ha podido preparar el ayudante de administrador": "the admin helper could not be set up",
+  "esta opción no está disponible en la versión de la Microsoft Store": "this option is not available in the Microsoft Store version",
   "hoy abre la Herramienta de Recortes": "today it opens the Snipping Tool",
   "ya es de winshotx": "it belongs to winshotx now",
   "cierra sesión para que Windows la suelte": "sign out so Windows lets go of it",
@@ -225,7 +275,7 @@ export const EN: Record<string, string> = {
   Atrás: "Back",
   Siguiente: "Next",
   Listo: "Done",
-  "Todo está en estas cuatro": "It is all in these four",
+
   "No hay más pantallas ni menús escondidos: lo que se puede cambiar está repartido aquí, y cada una cabe entera sin bajar.":
     "There are no other screens or hidden menus: everything you can change lives here, and each section fits without scrolling.",
   "La tecla que lo empieza todo": "The key that starts everything",
@@ -243,9 +293,8 @@ export const EN: Record<string, string> = {
   "Dónde acaba lo que capturas": "Where what you capture ends up",
   "La carpeta a la que van las capturas y los vídeos que guardas. El nombre lo pone winshotx con la fecha y la hora, y nunca pisa uno que ya exista.":
     "The folder the shots and videos you save go to. winshotx names them with the date and the time, and it never overwrites one that is already there.",
-  "Ya está: así puedes ayudar": "That is it, and here is how you can help",
-  "winshotx es gratis, sin cuentas y sin anuncios, y lo hago yo solo. Si te ahorra tiempo, un café es lo que lo mantiene en pie. Y si no, una estrella en GitHub o contar un fallo ayudan igual.":
-    "winshotx is free, with no accounts and no ads, and I build it on my own. If it saves you time, a coffee is what keeps it going. If not, a star on GitHub or a bug report helps just as much.",
+
+
 
   // La bienvenida
   "winshotx ya está en marcha": "winshotx is up and running",
@@ -376,7 +425,6 @@ export const EN: Record<string, string> = {
 
   // El panel de exportar del editor
   "bucle, sin audio": "loops, no sound",
-  "H.264 por hardware": "H.264 on the graphics card",
   "el fotograma actual, sin perder nada": "the frame you are on, losing nothing",
   "el fotograma actual, mucho más ligero": "the frame you are on, far lighter",
   "calidad máxima, más lento": "top quality, slower",
@@ -406,7 +454,6 @@ export const EN: Record<string, string> = {
 
   // Sueltos del panel de exportar
   "Elegir carpeta…": "Choose a folder…",
-  Nativo: "Built-in",
 
   // Sueltos de la bienvenida
   "o prueba": "or try",
@@ -499,17 +546,14 @@ export const EN: Record<string, string> = {
 
   // Acerca de, y como se ayuda
   "Acerca de": "About",
-  "Gratis, sin cuentas y sin anuncios, con licencia MIT. Lo hago yo solo, y ni las capturas ni los vídeos salen nunca de tu ordenador: aquí no hay servidor al que mandarlos.":
-    "Free, no accounts, no ads, MIT licensed. I build it on my own, and neither the shots nor the videos ever leave your computer: there is no server here to send them to.",
-  "La web": "The site",
-  "Invítame a un café": "Buy me a coffee",
-  "Es la única forma de apoyar winshotx: no hay versión de pago, ni anuncios, ni datos que vender. Se paga una vez, la cantidad la pones tú, y no hace falta cuenta.":
-    "It is the only way to support winshotx: there is no paid version, no ads and no data to sell. You pay once, you choose how much, and no account is needed.",
+
+
+
+
   Invitar: "Buy one",
-  "El código y los fallos": "The code and the bugs",
-  "Ayuda igual que un café y es gratis: una estrella hace que lo encuentre más gente, y un fallo contado con lo que estabas haciendo es lo que hace que se arregle.":
-    "It helps as much as a coffee and it costs nothing: a star makes more people find it, and a bug reported with what you were doing is what gets it fixed.",
+
+
   "El código": "The code",
-  "abierto, con licencia MIT": "open, MIT licensed",
+
   "Contar un fallo": "Report a bug",
 };

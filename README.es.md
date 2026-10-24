@@ -146,8 +146,16 @@ En el editor: `espacio` reproduce, `I` y `O` marcan inicio y final del recorte, 
 fotograma a fotograma, `Ctrl+S` exporta con los ajustes del panel, `Ctrl+Mayús+S` pregunta antes
 dónde guardarlo y `Esc` cierra.
 
+Las capturas guardadas se agrupan por fecha local dentro de la carpeta de capturas, por
+ejemplo `Pictures/winshotx/2026-10-22/Images/`. Cada dia separa `Images`, `Videos` y `GIFs`;
+las carpetas se crean solas cuando hacen falta. La galeria y el historial de la bandeja
+incluyen tambien los archivos antiguos de la carpeta principal y de las carpetas diarias. Los
+archivos existentes se quedan donde estaban y **Guardar como** permite elegir la ruta exacta.
+
 En el editor, para anotar: `1` flecha, `2` rectángulo, `3` texto, `4` resaltar, `5` paso numerado
-y `6` tapar datos. `Ctrl+Z` deshace la última marca. Los pasos se numeran solos, así que meter uno
+y `6` tapar datos. `7` activa el pincel a mano alzada, con color y tres grosores. Cada trazo
+es una sola marca y se guarda también al exportar imágenes o vídeos.
+`Ctrl+Z` deshace la última marca. Los pasos se numeran solos, así que meter uno
 en medio no deja dos treses en la misma imagen.
 
 Los dos atajos globales se cambian desde Ajustes pulsando el campo y tecleando la combinación

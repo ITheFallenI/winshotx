@@ -7,10 +7,52 @@
  * 这里没出现的文本会回退到西班牙语，所以新增文本不会导致程序崩溃，只会暂时未翻译。
  */
 export const ZH: Record<string, string> = {
+  "Galería de capturas": "截图图库",
+  "Seleccionar anotación": "选择标注",
+  "Tamaño del texto": "文字大小",
+  "Rehacer (Ctrl+Y)": "重做 (Ctrl+Y)",
+  "Eliminar anotación seleccionada": "删除所选标注",
+  "Abrir imagen (Ctrl+O)": "打开图片 (Ctrl+O)",
+  "Pegar imagen (Ctrl+V)": "粘贴图片 (Ctrl+V)",
+  "Abrir imagen…": "打开图片…",
+  "Editar una imagen existente": "编辑已有图片",
+  "¿Descartar los cambios sin guardar?": "放弃未保存的更改？",
+  "Guarda la imagen o el vídeo para conservar tus cambios.": "保存图片或视频以保留更改。",
+  "Seguir editando": "继续编辑",
+  "Descartar cambios": "放弃更改",
+
+  "Pincel a mano alzada": "自由画笔",
+  "Grosor del pincel": "画笔粗细",
+  "Fino": "细",
+  "Medio": "中",
+  "Grueso": "粗",
+  "Antes de grabar": "录制前选择",
+  "Elige el códec antes de empezar. Se recuerda para las próximas grabaciones y se usa al guardar el vídeo. Puedes cambiarlo después en el editor.": "开始录制前选择编码。此设置会保留用于以后的录制和保存视频，也可以稍后在编辑器中更改。",
+  "Resolución original": "原始分辨率",
+  "Codificador integrado": "内置编码器",
+  "Vídeo H.264 o H.265 (HEVC)": "H.264 或 H.265 (HEVC) 视频",
+  "Códec de vídeo": "视频编码",
+  "Archivos más pequeños. Requiere compatibilidad con HEVC para codificar y reproducir.": "文件更小。编码和播放需要支持 HEVC。",
+  "Mayor compatibilidad para reproducir y compartir.": "播放和分享的兼容性更好。",
+  "Sin asignar": "未分配",
+  "Quitar atajo": "清除快捷键",
+  "Sin atajo de teclado. Usa el menú de la bandeja o la barra de captura.": "未设置快捷键。请使用托盘菜单或截图工具栏。",
   // 标题栏和四个设置分区
   Versión: "版本",
   Capturar: "截图",
   Grabar: "录屏",
+  "Galería": "图库",
+  "Teclas": "按键",
+  "Icono de la bandeja": "托盘图标",
+  "Todas las secciones, aquí": "所有分区都在这里",
+  "El icono a tu manera": "自定义托盘图标",
+  "Clic izquierdo": "左键单击",
+  "Carpeta de la última captura": "打开最近保存文件夹",
+  "Abrir la carpeta de capturas": "打开截图文件夹",
+  "Abrir la galería": "打开图库",
+  "Abrir los ajustes": "打开设置",
+  "Elige qué hace un clic izquierdo en el icono de winshotx. El botón derecho abre el menú.": "选择左键单击 winshotx 图标的操作。右键单击打开菜单。",
+  "Abre la ubicación del último archivo guardado, incluso con Guardar como. Antes de guardar, abre la carpeta de capturas.": "打开最近保存文件所在的文件夹，包括另存为位置。首次保存前打开截图文件夹。",
   "Teclas de Windows": "Windows 快捷键",
   "La app": "应用",
   "Secciones de ajustes": "设置分区",
@@ -87,7 +129,6 @@ export const ZH: Record<string, string> = {
   "{ancho} × {alto} · hasta {tamaño} en disco": "{ancho} × {alto} · 最大占用 {tamaño} 磁盘",
   Fluidez: "流畅度",
   "fotogramas por segundo": "帧每秒",
-  Nativa: "原生",
   "abre el editor con lo último, sin dejar de grabar":
     "用最近片段打开编辑器，同时继续录制",
 
@@ -95,6 +136,15 @@ export const ZH: Record<string, string> = {
   "Las teclas de captura de Windows": "Windows 自带截图快捷键",
   "Impr Pant": "Print Screen",
   "Usar también Impr Pant": "同时使用 Print Screen",
+  "Sobre ventanas de administrador": "在管理员窗口上方",
+  "Con el Administrador de tareas u otra ventana de administrador delante, Windows no deja que los atajos lleguen a winshotx. Esto los pone en manos de un pequeño ayudante con permisos de administrador. Windows pide permiso una vez al encenderlo y otra al apagarlo.": "当任务管理器或其他管理员窗口位于前台时，Windows 不会把快捷键交给 winshotx。开启后，快捷键由一个拥有管理员权限的小助手接管。开启和关闭时 Windows 各会请求一次权限。",
+  "esperando el permiso de Windows…": "正在等待 Windows 授权…",
+  "los atajos funcionan delante de todo": "快捷键在任何窗口前都有效",
+  "no funcionan con una ventana de administrador delante": "管理员窗口在前台时快捷键无效",
+  "Atajos sobre ventanas de administrador": "在管理员窗口上方使用快捷键",
+  "se ha cancelado el permiso de administrador": "已取消管理员授权",
+  "no se ha podido preparar el ayudante de administrador": "无法设置管理员助手",
+  "esta opción no está disponible en la versión de la Microsoft Store": "Microsoft Store 版本不提供此选项",
   "hoy abre la Herramienta de Recortes": "目前会打开截图工具",
   "ya es de winshotx": "现在属于 winshotx",
   "cierra sesión para que Windows la suelte": "注销一次让 Windows 释放该键",
@@ -216,7 +266,7 @@ export const ZH: Record<string, string> = {
   Atrás: "上一步",
   Siguiente: "下一步",
   Listo: "完成",
-  "Todo está en estas cuatro": "全部就在这四个页面",
+
   "No hay más pantallas ni menús escondidos: lo que se puede cambiar está repartido aquí, y cada una cabe entera sin bajar.":
     "没有其他隐藏页面或菜单：所有可更改项都分布在这里，每页无需滚动即可看完。",
   "La tecla que lo empieza todo": "一切从按下这个键开始",
@@ -234,9 +284,8 @@ export const ZH: Record<string, string> = {
   "Dónde acaba lo que capturas": "截图保存到哪里",
   "La carpeta a la que van las capturas y los vídeos que guardas. El nombre lo pone winshotx con la fecha y la hora, y nunca pisa uno que ya exista.":
     "保存截图和视频的文件夹。winshotx 用日期和时间命名，不会覆盖已有文件。",
-  "Ya está: así puedes ayudar": "就到这里：你可以这样支持",
-  "winshotx es gratis, sin cuentas y sin anuncios, y lo hago yo solo. Si te ahorra tiempo, un café es lo que lo mantiene en pie. Y si no, una estrella en GitHub o contar un fallo ayudan igual.":
-    "winshotx 免费、无账号、无广告，由我一个人开发。如果它帮你节省了时间，请我喝杯咖啡就是它活下去的动力。如果不方便，在 GitHub 点个星或反馈问题同样有帮助。",
+
+
 
   // 欢迎页
   "winshotx ya está en marcha": "winshotx 已经启动",
@@ -367,7 +416,6 @@ export const ZH: Record<string, string> = {
 
   // 编辑器导出面板
   "bucle, sin audio": "循环，无音频",
-  "H.264 por hardware": "硬件 H.264",
   "el fotograma actual, sin perder nada": "当前帧，无损",
   "el fotograma actual, mucho más ligero": "当前帧，体积小得多",
   "calidad máxima, más lento": "最高质量，较慢",
@@ -397,7 +445,6 @@ export const ZH: Record<string, string> = {
 
   // 导出面板零星文本
   "Elegir carpeta…": "选择文件夹…",
-  Nativo: "内置",
 
   // 欢迎页零星文本
   "o prueba": "或者试试",
@@ -489,18 +536,15 @@ export const ZH: Record<string, string> = {
 
   // 关于和支持
   "Acerca de": "关于",
-  "Gratis, sin cuentas y sin anuncios, con licencia MIT. Lo hago yo solo, y ni las capturas ni los vídeos salen nunca de tu ordenador: aquí no hay servidor al que mandarlos.":
-    "免费、无账号、无广告，MIT 许可。由我一个人开发，截图和视频永远不会离开你的电脑：这里没有服务器可以上传。",
-  "La web": "官网",
-  "Invítame a un café": "请我喝杯咖啡",
-  "Es la única forma de apoyar winshotx: no hay versión de pago, ni anuncios, ni datos que vender. Se paga una vez, la cantidad la pones tú, y no hace falta cuenta.":
-    "这是支持 winshotx 的唯一方式：没有付费版、没有广告、没有数据可卖。一次付款，金额由你决定，无需账号。",
+
+
+
+
   Invitar: "请一杯",
-  "El código y los fallos": "代码与问题反馈",
-  "Ayuda igual que un café y es gratis: una estrella hace que lo encuentre más gente, y un fallo contado con lo que estabas haciendo es lo que hace que se arregle.":
-    "和请咖啡一样有帮助，而且免费：点星能让更多人发现它，反馈问题时说明你当时的操作就能帮助修复。",
+
+
   "El código": "代码",
-  "abierto, con licencia MIT": "开源，MIT 许可",
+
   "Contar un fallo": "反馈问题",
 
   // Lo que entro despues de la traduccion original (0.2.26 a 0.2.28).

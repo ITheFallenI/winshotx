@@ -7,23 +7,21 @@ import {
   Camera,
   Compass,
   Clipboard,
-  Coffee,
   Crop,
   EyeOff,
   FolderOpen,
   Gauge,
-  Github,
   Monitor,
   HardDrive,
   History,
   Keyboard,
   Languages,
-  Info,
   Mic,
   MousePointer2,
   Palette,
   Power,
   Scissors,
+  ShieldCheck,
   SquarePen,
   Timer,
   Video,
@@ -37,10 +35,10 @@ import {
   getSettings,
   justUpdated,
   openFolder,
-  openUrl,
   openWindowsApps,
   pickDirectory,
   removeSnippingTool,
+  openImage,
   useWinShiftS,
   listScreens,
   printScreenState,
@@ -50,9 +48,9 @@ import {
   restartShell,
   setSettings,
   shortcutStatus,
+  useAdminShortcuts,
   usePrintScreen,
 } from "../../lib/ipc";
-import { CAFE, FALLOS, REPO, WEB, comoSeLee } from "../../lib/enlaces";
 import { ColorDelResalte } from "./ColorDelResalte";
 import { formatBytes } from "../../lib/format";
 import { aplicarTema } from "../../lib/tema";
@@ -68,6 +66,7 @@ import {
   type Theme,
   type Language,
   type ShortcutStatus,
+  type TrayClickAction,
 } from "../../lib/types";
 import { Segmented } from "../ui/Segmented";
 import { Switch } from "../ui/Switch";
@@ -75,8 +74,9 @@ import { Row, RowButton, Section } from "./Section";
 import { SettingsHeader, type SeccionId } from "./SettingsHeader";
 import { GuidedTour } from "./GuidedTour";
 import { BarraRapida } from "./BarraRapida";
-import { MarcaDeAgua } from "../ui/MarcaDeAgua";
 import { ShortcutField } from "./ShortcutField";
+import { takeGalleryRequest } from "../../lib/gallery";
+import { GalleryApp } from "../gallery/GalleryApp";
 
 /** La inyecta Vite desde package.json: escribirla a mano acababa en cuatro copias. */
 const VERSION = __VERSION__;
@@ -122,7 +122,7 @@ const FPS_ANILLO = [
 const ALTO_ANILLO = [
   { value: 720, label: "720p" },
   { value: 1080, label: "1080p" },
-  { value: 0, label: "Nativa" },
+  { value: 0, label: "Resolución original" },
 ];
 
 /**
@@ -297,10 +297,12 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
       .catch(() => {
         // Una compilacion sin este comando: se abre donde siempre.
       });
+    const requestedGallery = () => { void takeGalleryRequest().then(requested => { if (requested) setSeccion("galeria"); }).catch(() => {}); };
     const unlisten = listen(EVENTS.settingsShown, () => {
       refrescar();
       setError(null);
-    });
+      requestedGallery();
+    }).then(stop => { requestedGallery(); return stop; });
     // El anillo cambia por su cuenta: se enciende al arrancar la app, va llenandose y
     // guarda cuando alguien pulsa la tecla. Preguntando solo al abrir la ventana, la
     // fila se quedaria contando lo de hace un rato.
@@ -379,6 +381,23 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
     }
   }, []);
 
+  const [admin, setAdmin] = useState<"pidiendo" | null>(null);
+  const cambiarAdmin = useCallback(async (quiere: boolean) => {
+    setError(null);
+    setAdmin("pidiendo");
+    try {
+      setShortcuts(await useAdminShortcuts(quiere));
+      // Igual que con Impr Pant: Rust ha escrito los ajustes y hay que releerlos.
+      const frescos = await getSettings();
+      ultimo.current = frescos;
+      setLocal(frescos);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAdmin(null);
+    }
+  }, []);
+
   // Desinstalar algo no puede pasar de un clic despistado: el primero pregunta y el
   // segundo lo hace. Y a los pocos segundos se olvida, para no dejar la trampa armada.
   const quitarRecortes = useCallback(async () => {
@@ -437,7 +456,6 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-lienzo">
-      <MarcaDeAgua />
       <SettingsHeader
         activa={seccion}
         onCambiar={setSeccion}
@@ -447,6 +465,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
       />
 
       <div className="relative min-h-0 flex-1">
+      {seccion === "galeria" ? <GalleryApp embedded /> : <>
       <div className="h-full overflow-y-auto px-4 py-4" data-scroll-ajustes>
         {/* Dos columnas, que es para lo que se subio la navegacion arriba. Las columnas
             de las secciones con cuatro bloques se escriben a mano (ver «grabar» y «la
@@ -461,7 +480,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     icon={<Camera className="size-4" />}
                     label={t("Capturar región")}
                     explicacion={t("Congela la pantalla en el momento de pulsarla y te deja recortar encima de esa foto quieta: lo que se mueva debajo ya no te estorba. Windows se reserva algunas combinaciones para él y esas no llegan hasta aquí.")}
-                    hint={shortcuts.capture ? undefined : t("esa combinación está ocupada")}
+                    hint={!settings.captureShortcut.trim() || shortcuts.capture ? undefined : t("esa combinación está ocupada")}
                     tone="warn"
                     control={
                       <ShortcutField
@@ -477,7 +496,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     explicacion={t(
                       "La misma captura, pero al soltar el ratón se abre el editor en vez de la barra de siempre. Para la captura que hay que trabajar: señalar algo con una flecha, tapar un dato o recortar antes de mandarla.",
                     )}
-                    hint={shortcuts.edit ? undefined : t("esa combinación está ocupada")}
+                    hint={!settings.editShortcut.trim() || shortcuts.edit ? undefined : t("esa combinación está ocupada")}
                     tone="warn"
                     control={
                       <ShortcutField
@@ -656,7 +675,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     label={t("Grabar región")}
                     explicacion={t("Recortas igual que para una captura, pero en vez de una foto sale un vídeo. El mismo atajo lo termina, así que no hace falta ir a buscar ningún botón mientras grabas.")}
                     hint={
-                      shortcuts.record ? t("el mismo atajo la termina") : t("esa combinación está ocupada")
+                      !settings.recordShortcut.trim() ? undefined : shortcuts.record ? t("el mismo atajo la termina") : t("esa combinación está ocupada")
                     }
                     tone={shortcuts.record ? "normal" : "warn"}
                     control={
@@ -677,6 +696,29 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                         value={settings.fps}
                         options={FPS_OPTIONS}
                         onChange={(v) => patch({ fps: v })}
+                      />
+                    }
+                  />
+                </Section>
+
+                <Section title={t("Códec de vídeo")}>
+                  <Row
+                    icon={<Video className="size-4" />}
+                    label={t("Antes de grabar")}
+                    explicacion={t("Elige el códec antes de empezar. Se recuerda para las próximas grabaciones y se usa al guardar el vídeo. Puedes cambiarlo después en el editor.")}
+                    hint={settings.videoCodec === "h265"
+                      ? t("Archivos más pequeños. Requiere compatibilidad con HEVC para codificar y reproducir.")
+                      : t("Mayor compatibilidad para reproducir y compartir.")}
+                    stacked
+                    control={
+                      <Segmented
+                        etiqueta={t("Códec de vídeo")}
+                        value={settings.videoCodec ?? "h264"}
+                        options={[
+                          { value: "h264" as const, label: "H.264" },
+                          { value: "h265" as const, label: "H.265 (HEVC)" },
+                        ]}
+                        onChange={(videoCodec) => patch({ videoCodec })}
                       />
                     }
                   />
@@ -835,7 +877,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                         ajustado
                         etiqueta={t("Calidad")}
                         value={settings.replayHeight}
-                        options={ALTO_ANILLO}
+                        options={ALTO_ANILLO.map((opcion) => ({ ...opcion, label: t(opcion.label) }))}
                         onChange={(v) => patch({ replayHeight: v })}
                       />
                     }
@@ -869,7 +911,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     label={t("Quedarme con lo último")}
                     explicacion={t("La tecla que rescata. Guarda los últimos segundos y te los abre en el editor **sin dejar de grabar**, así que puedes seguir y volver a rescatar dentro de un rato.")}
                     hint={
-                      !replay.running
+                      !settings.replayShortcut.trim() ? undefined : !replay.running
                         ? t("primero hay que encenderlo aquí arriba")
                         : replay.bufferedMs < settings.replaySeconds * 1000
                           ? t("ahora mismo hay {n} s guardados", {
@@ -964,6 +1006,26 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                       </span>
                     }
                   />
+                  <Row
+                    icon={<ShieldCheck className="size-4" />}
+                    label={t("Sobre ventanas de administrador")}
+                    explicacion={t("Con el Administrador de tareas u otra ventana de administrador delante, Windows no deja que los atajos lleguen a winshotx. Esto los pone en manos de un pequeño ayudante con permisos de administrador. Windows pide permiso una vez al encenderlo y otra al apagarlo.")}
+                    hint={
+                      admin
+                        ? t("esperando el permiso de Windows…")
+                        : settings.adminShortcuts
+                          ? t("los atajos funcionan delante de todo")
+                          : t("no funcionan con una ventana de administrador delante")
+                    }
+                    tone={settings.adminShortcuts ? "ok" : "normal"}
+                    control={
+                      <Switch
+                        checked={settings.adminShortcuts}
+                        onChange={(v) => void cambiarAdmin(v)}
+                        label={t("Atajos sobre ventanas de administrador")}
+                      />
+                    }
+                  />
                 </Section>
                 <Section title={t("La Herramienta de Recortes")}>
                   <Row
@@ -1024,6 +1086,10 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     mas altos, "winshotx" y "Acerca de", van uno en cada columna. */}
                 <div className="flex flex-col">
                 <Section title={t("Archivos")} tour="archivos">
+                  <Row icon={<History className="size-4" />} label={t("Galería de capturas")}
+                    control={<RowButton onClick={() => setSeccion("galeria")}>{t("Abrir")}</RowButton>} />
+                  <Row icon={<SquarePen className="size-4" />} label={t("Editar una imagen existente")}
+                    control={<RowButton onClick={() => void openImage().catch(error => setError(String(error)))}>{t("Abrir imagen…")}</RowButton>} />
                   <Row
                     icon={<FolderOpen className="size-4" />}
                     label={t("Carpeta de destino")}
@@ -1141,43 +1207,21 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     }
                   />
                 </Section>
-                {/* Lo unico que winshotx pide, y va al final del todo a proposito:
-                    primero la herramienta funcionando y solo despues quien la hace.
-                    Debajo de los dos botones que se llevan fuera va la direccion escrita,
-                    porque un boton que abre el navegador tiene que decir a donde antes de
-                    que lo pulsen. En la fila del codigo no cabe con los dos botones al
-                    lado, y ahi la dice el icono de GitHub. */}
-                <Section title={t("Acerca de")} tour="acerca">
-                  <Row
-                    icon={<Info className="size-4" />}
-                    label={t("winshotx {version}", { version: VERSION })}
-                    explicacion={t("Gratis, sin cuentas y sin anuncios, con licencia MIT. Lo hago yo solo, y ni las capturas ni los vídeos salen nunca de tu ordenador: aquí no hay servidor al que mandarlos.")}
-                    hint={comoSeLee(WEB)}
-                    control={<RowButton onClick={() => void openUrl(WEB)}>{t("La web")}</RowButton>}
-                  />
-                  <Row
-                    icon={<Coffee className="size-4" />}
-                    label={t("Invítame a un café")}
-                    explicacion={t("Es la única forma de apoyar winshotx: no hay versión de pago, ni anuncios, ni datos que vender. Se paga una vez, la cantidad la pones tú, y no hace falta cuenta.")}
-                    hint={comoSeLee(CAFE)}
-                    control={
-                      <RowButton onClick={() => void openUrl(CAFE)}>{t("Invitar")}</RowButton>
-                    }
-                  />
-                  <Row
-                    icon={<Github className="size-4" />}
-                    label={t("El código y los fallos")}
-                    explicacion={t("Ayuda igual que un café y es gratis: una estrella hace que lo encuentre más gente, y un fallo contado con lo que estabas haciendo es lo que hace que se arregle.")}
-                    hint={t("abierto, con licencia MIT")}
-                    control={
-                      <span className="flex gap-1.5">
-                        <RowButton onClick={() => void openUrl(REPO)}>{t("El código")}</RowButton>
-                        <RowButton onClick={() => void openUrl(FALLOS)}>
-                          {t("Contar un fallo")}
-                        </RowButton>
-                      </span>
-                    }
-                  />
+                <Section title={t("Icono de la bandeja")} tour="bandeja">
+                  <Row stacked icon={<MousePointer2 className="size-4" />}
+                    label={t("Clic izquierdo")}
+                    explicacion={t("Elige qué hace un clic izquierdo en el icono de winshotx. El botón derecho abre el menú.")}
+                    hint={(settings.trayClickAction ?? "latestFolder") === "latestFolder" ? t("Abre la ubicación del último archivo guardado, incluso con Guardar como. Antes de guardar, abre la carpeta de capturas.") : undefined}
+                    control={<select aria-label={t("Clic izquierdo")} value={settings.trayClickAction ?? "latestFolder"}
+                      onChange={e => patch({ trayClickAction: e.target.value as TrayClickAction })}
+                      className="w-full rounded-md border border-linea-fuerte bg-hueco px-3 py-2 text-sm text-texto">
+                      <option value="latestFolder">{t("Carpeta de la última captura")}</option>
+                      <option value="capture">{t("Capturar región")}</option>
+                      <option value="record">{t("Grabar región")}</option>
+                      <option value="gallery">{t("Abrir la galería")}</option>
+                      <option value="settings">{t("Abrir los ajustes")}</option>
+                      <option value="captureFolder">{t("Abrir la carpeta de capturas")}</option>
+                    </select>} />
                 </Section>
                 </div>
               </>
@@ -1186,15 +1230,15 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
       </div>
       {/* El desvanecido dice «esto sigue»: cortado a hueso, lo de abajo no se busca. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-lienzo to-transparent" />
+      </>}
       </div>
 
-      <BarraRapida
+      {seccion !== "galeria" && <BarraRapida
         settings={settings}
         patch={patch}
         version={VERSION}
         recienActualizado={recienActualizado}
-        onTour={() => setTour(true)}
-      />
+      />}
 
       {tour && <GuidedTour onNavegar={setSeccion} onCerrar={() => setTour(false)} />}
 

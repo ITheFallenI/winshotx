@@ -3,8 +3,9 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Camera,
+  ImagePlus,
+  Images,
   FolderOpen,
-  History,
   Power,
   RefreshCw,
   Rewind,
@@ -16,23 +17,23 @@ import {
   getSettings,
   resizeTrayMenu,
   copiarCaptura,
-  setSettings,
   trayMenuAction,
   trayMenuState,
   ultimasCapturas,
+  openImage,
 } from "../../lib/ipc";
 import { partesDeAtajo } from "../../lib/teclas";
 import { aplicarIdioma, useT } from "../../lib/i18n";
 import { aplicarTema } from "../../lib/tema";
 import { EVENTS, type CapturaReciente, type TrayMenuAction, type TrayMenuState } from "../../lib/types";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { openGallery } from "../../lib/gallery";
 
 /**
  * El menú del botón derecho de la bandeja, dibujado por winshotx.
  *
- * Un menú del sistema es una lista de textos: no sabe enseñar un interruptor, ni el atajo
- * de cada cosa, ni decir qué versión hay puesta. Aquí el anillo de los últimos segundos es
- * lo que es, un interruptor, en vez de una entrada que enciende y otra que apaga.
+ * Muestra atajos, version y capturas recientes. El interruptor del anillo vive en los
+ * ajustes de grabacion; si esta encendido, aqui se puede rescatar lo grabado.
  *
  * La ventana se reutiliza entre aperturas, así que el estado se vuelve a pedir cada vez
  * que Rust avisa de que se ha abierto: el anillo puede haberse encendido desde los ajustes
@@ -88,9 +89,13 @@ export function TrayMenu() {
   // La ventana se ajusta a lo que mide el menú: con el anillo apagado hay una entrada
   // menos, y un alto fijo dejaría un trozo vacío debajo.
   useEffect(() => {
+    if (!estado) return;
     const caja = tarjeta.current;
     if (!caja) return;
-    const medir = () => void resizeTrayMenu(Math.ceil(caja.getBoundingClientRect().height));
+    const medir = () => {
+      const alto = Math.ceil(caja.getBoundingClientRect().height);
+      if (alto > 0) void resizeTrayMenu(alto);
+    };
     medir();
     const observador = new ResizeObserver(medir);
     observador.observe(caja);
@@ -124,13 +129,6 @@ export function TrayMenu() {
     }
   };
 
-  /** El anillo se enciende por el mismo camino que su interruptor de los ajustes. */
-  const alternarAnillo = async () => {
-    const ajustes = await getSettings();
-    await setSettings({ ...ajustes, replayEnabled: !ajustes.replayEnabled });
-    await cargar();
-  };
-
   // Sin tarjeta de relleno mientras carga: un rectángulo opaco del tamaño de antes
   // parpadearía en la pantalla antes de que llegue el contenido de verdad.
   if (!estado) return <div ref={tarjeta} />;
@@ -144,15 +142,6 @@ export function TrayMenu() {
       </header>
 
       <div className="p-1">
-        <Interruptor
-          icono={<History className="size-4" />}
-          texto={t("Grabar siempre lo último")}
-          puesto={estado.replay}
-          onClick={() => void alternarAnillo()}
-        />
-
-        <Separador />
-
         <Entrada
           icono={<Camera className="size-4" />}
           texto={t("Capturar región")}
@@ -212,6 +201,13 @@ export function TrayMenu() {
           </>
         )}
 
+        <Entrada
+          icono={<ImagePlus className="size-4" />}
+          texto={t("Abrir imagen…")}
+          onClick={() => { void getCurrentWindow().hide(); void openImage().catch(error => setCopiada(String(error))); }}
+        />
+        <Entrada icono={<Images className="size-4" />} texto={t("Galería de capturas")}
+          onClick={() => { void getCurrentWindow().hide(); void openGallery().catch(error => setCopiada(String(error))); }} />
         <Entrada
           icono={<FolderOpen className="size-4" />}
           texto={t("Abrir la carpeta")}
@@ -273,43 +269,6 @@ function Entrada({
           {partesDeAtajo(atajo).join("+")}
         </span>
       )}
-    </button>
-  );
-}
-
-/** Y una que se queda puesta: la misma fila con el interruptor de la app a la derecha. */
-function Interruptor({
-  icono,
-  texto,
-  puesto,
-  onClick,
-}: {
-  icono: ReactNode;
-  texto: string;
-  puesto: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      role="switch"
-      aria-checked={puesto}
-      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-start text-texto transition-colors hover:bg-realce"
-    >
-      <span className={`shrink-0 ${puesto ? "text-marca" : "text-apagado"}`}>{icono}</span>
-      <span className="flex-1 truncate text-[12.5px] font-medium">{texto}</span>
-      <span
-        className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
-          puesto ? "bg-marca" : "bg-apagador"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 size-3 rounded-full bg-white transition-[left] ${
-            puesto ? "left-3.5" : "left-0.5"
-          }`}
-        />
-      </span>
     </button>
   );
 }

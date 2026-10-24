@@ -321,7 +321,7 @@ function Hola({
             valor={ajustes.captureShortcut}
             onElegir={onCaptura}
           />
-          <Ocupado visible={!atajos.capture} />
+          <Ocupado visible={!!ajustes.captureShortcut.trim() && !atajos.capture} />
         </div>
         <div className="rounded-xl border border-linea bg-tarjeta p-4">
           <span className="flex items-center gap-2 text-[13px] font-medium text-texto">
@@ -340,7 +340,7 @@ function Hola({
             valor={ajustes.recordShortcut}
             onElegir={onGrabacion}
           />
-          <Ocupado visible={!atajos.record} />
+          <Ocupado visible={!!ajustes.recordShortcut.trim() && !atajos.record} />
         </div>
       </div>
 

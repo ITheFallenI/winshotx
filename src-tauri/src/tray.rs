@@ -26,7 +26,7 @@ pub fn build(app: &AppHandle) -> Result<()> {
             match button {
                 // Izquierdo: lo que se viene a hacer nueve de cada diez veces.
                 MouseButton::Left => {
-                    let _ = windows_mgr::open_overlays(tray.app_handle(), OverlayIntent::Capture);
+                    click_left(tray.app_handle());
                 }
                 // Derecho: el menu, anclado justo donde esta el icono.
                 MouseButton::Right => {
@@ -46,6 +46,11 @@ pub fn build(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
+pub fn click_left(app: &AppHandle) {
+    let action = app.state::<AppState>().settings.read().tray_click_action;
+    ejecutar(app, action.action_id());
+}
+
 /// Lo que hace cada entrada del menu, en un solo sitio.
 ///
 /// Lo llaman el menu dibujado (`tray_menu.rs`, por el comando `tray_menu_action`) y el
@@ -54,6 +59,15 @@ pub fn build(app: &AppHandle) -> Result<()> {
 /// separarian al primer cambio.
 pub fn ejecutar(app: &AppHandle, id: &str) {
     match id {
+            "latest-folder" => {
+                let app = app.clone();
+                std::thread::spawn(move || {
+                    let captures = std::path::PathBuf::from(app.state::<AppState>().settings.read().save_directory.clone());
+                    let folder = app.state::<crate::last_saved::LatestSave>().folder(&captures);
+                    if let Err(error) = crate::platform::open_folder(&folder) { eprintln!("[tray] {error}"); }
+                });
+            }
+            "gallery" => { let _ = crate::gallery::show(app); }
             "capture" => {
                 let _ = windows_mgr::open_overlays(app, OverlayIntent::Capture);
             }

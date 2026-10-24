@@ -323,6 +323,9 @@ fn preparar_overlay(app: &AppHandle, state: &AppState, monitor: &MonitorInfo) ->
         build_overlay_window(app, &label, monitor.id)?
     };
 
+    // Aparcada estaba con la memoria al minimo; para pintar la captura, normal.
+    crate::platform::webview::memoria_baja(&window, false);
+
     // El tamanno se pone ya, aparcada, para que el navegador se acomode a el mientras
     // carga la imagen. La posicion NO: eso es ensennarla, y se ensenna cuando avise de
     // que esta pintada (`overlay_listo`), o cuando se agote la espera del rescate.
@@ -680,6 +683,7 @@ pub fn precrear_overlays(app: &AppHandle) {
         let _ = window.set_position(aparcadero_de(monitor, &monitors));
         let _ = window.set_size(PhysicalSize::new(monitor.width, monitor.height));
         let _ = window.show();
+        crate::platform::webview::memoria_baja(&window, true);
     }
 }
 
@@ -732,6 +736,11 @@ pub fn close_overlays(app: &AppHandle) {
             .map(|m| aparcadero_de(m, &monitores))
             .unwrap_or_else(|| aparcadero(app));
         let _ = window.set_position(sitio);
+        // Aparcada no se ve, pero guardaba la pantalla congelada de la ultima captura
+        // (unos 15 MB por monitor de 2560x1440) hasta la siguiente. Se suelta, y el
+        // navegador se pone a dieta hasta que vuelva a hacer falta.
+        let _ = window.emit_to(label.as_str(), crate::EVENT_OVERLAY_HIDE, ());
+        crate::platform::webview::memoria_baja(&window, true);
     }
 }
 
@@ -957,11 +966,7 @@ pub fn close_recorder(app: &AppHandle) {
 /// de grabacion, la cuenta atras y las capturas ancladas van sin marco porque son
 /// herramientas flotantes, no ventanas.
 pub fn open_editor(app: &AppHandle, session_id: &str) -> Result<()> {
-    for (label, window) in app.webview_windows() {
-        if label.starts_with(EDITOR_LABEL) {
-            let _ = window.close();
-        }
-    }
+    // Cada imagen abre su propio editor: importar otra no descarta trabajo sin guardar.
     let label = format!(
         "{EDITOR_LABEL}-{}",
         OVERLAY_SEQUENCE.fetch_add(1, Ordering::Relaxed)
@@ -1071,6 +1076,7 @@ fn sitio_del_ancla(region: Rect, monitor: Option<MonitorSitio>) -> (i32, i32) {
 /// decirselo para que refresque el tamanno de la cache y mire si hay version nueva.
 pub fn show_settings(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window("main") {
+        crate::platform::webview::memoria_baja(&window, false);
         window.show()?;
         let _ = window.unminimize();
         let _ = window.set_focus();
@@ -1090,13 +1096,32 @@ pub fn show_settings(app: &AppHandle) -> Result<()> {
 #[cfg(windows)]
 fn force_foreground(window: &tauri::WebviewWindow) {
     use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{SetForegroundWindow, SW_SHOW, ShowWindow};
+    use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, GetForegroundWindow, GetWindowThreadProcessId, SetForegroundWindow,
+        SW_SHOW, ShowWindow,
+    };
 
     let Ok(handle) = window.hwnd() else { return };
     unsafe {
         let hwnd = HWND(handle.0);
         let _ = ShowWindow(hwnd, SW_SHOW);
         let _ = SetForegroundWindow(hwnd);
+        if GetForegroundWindow() == hwnd {
+            return;
+        }
+        // Con la barra de tareas o el menu Inicio delante, Windows puede negarse: el overlay
+        // sale pero el teclado se queda en el escritorio y Escape no hace nada. Engancharse
+        // un momento a la cola de entrada de quien tiene el primer plano es lo que se lo
+        // deja pasar.
+        let delante = GetForegroundWindow();
+        let suyo = GetWindowThreadProcessId(delante, None);
+        let mio = GetCurrentThreadId();
+        if suyo != 0 && suyo != mio && AttachThreadInput(mio, suyo, true).as_bool() {
+            let _ = BringWindowToTop(hwnd);
+            let _ = SetForegroundWindow(hwnd);
+            let _ = AttachThreadInput(mio, suyo, false);
+        }
     }
 }
 

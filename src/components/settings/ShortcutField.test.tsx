@@ -1,11 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ShortcutField } from "./ShortcutField";
+import { aplicarIdioma } from "../../lib/i18n";
+
+// Los textos se buscan en espannol: sin fijar el idioma saldrian en el del sistema.
+beforeEach(() => aplicarIdioma("es"));
 
 function grabar() {
   const onChange = vi.fn();
   render(<ShortcutField value="CmdOrCtrl+Shift+Digit2" active onChange={onChange} />);
-  const campo = screen.getByRole("button");
+  const campo = screen.getByTitle("Clic para cambiar el atajo");
   fireEvent.click(campo);
   return { campo, onChange };
 }
@@ -76,9 +80,29 @@ describe("grabar un atajo global", () => {
 
   it("muestra una tecla suelta guardada y conserva el estado de conflicto", () => {
     const { rerender } = render(<ShortcutField value="F2" active onChange={vi.fn()} />);
-    expect(screen.getByRole("button")).toHaveTextContent(/^F2$/);
+    expect(screen.getByTitle("Clic para cambiar el atajo")).toHaveTextContent(/^F2$/);
     rerender(<ShortcutField value="F2" active={false} onChange={vi.fn()} />);
-    expect(screen.getByRole("button")).toHaveClass("border-red-500/40");
-    expect(screen.getByRole("button")).toHaveTextContent(/^F2$/);
+    expect(screen.getByTitle("Clic para cambiar el atajo")).toHaveClass("border-red-500/40");
+    expect(screen.getByTitle("Clic para cambiar el atajo")).toHaveTextContent(/^F2$/);
+  });
+
+  it.each(["Delete", "Backspace"])("%s quita el atajo mientras se graba", (key) => {
+    const { onChange } = grabar();
+    fireEvent.keyDown(window, { key, code: key });
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("");
+  });
+
+  it("el boton quita el atajo y un campo vacio avisa sin decir que esta ocupado", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<ShortcutField value="F2" active onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Quitar atajo" }));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("");
+    rerender(<ShortcutField value="" active={false} onChange={onChange} />);
+    expect(screen.getByTitle("Clic para cambiar el atajo")).toHaveTextContent("Sin asignar");
+    expect(screen.getByTitle("Clic para cambiar el atajo")).not.toHaveClass("border-red-500/40");
+    expect(screen.getByRole("status")).toHaveTextContent("Sin atajo de teclado");
+    fireEvent.click(screen.getByTitle("Clic para cambiar el atajo"));
+    fireEvent.keyDown(window, { key: "F3", code: "F3" });
+    expect(onChange).toHaveBeenLastCalledWith("F3");
   });
 });
