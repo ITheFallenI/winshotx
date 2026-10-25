@@ -822,6 +822,7 @@ pub(crate) fn peticion_por_defecto(session: &SessionData) -> crate::exporter::Ex
         speed: 1.0,
         destination: None,
         copy_to_clipboard: false,
+        aplanada: false,
     }
 }
 

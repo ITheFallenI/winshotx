@@ -39,8 +39,36 @@ import { contener } from "../../lib/contener";
 import { ESTUDIO_APAGADO, type Estudio } from "../../lib/estudio";
 import { useT } from "../../lib/i18n";
 import { useAnnotationHistory } from "../../lib/annotationHistory";
+import { EditorFoto } from "../foto/EditorFoto";
 
+/**
+ * El editor que toca: el de imágenes para una captura (PNG o JPG) y el de vídeo para una
+ * grabación. Son dos editores distintos porque piden cosas distintas: una captura quiere
+ * zoom, capas y recortar mirando el resultado; una grabación quiere línea de tiempo.
+ */
 export function EditorApp({ sessionId }: { sessionId: string }) {
+  const t = useT();
+  const [datos, setDatos] = useState<{ session: SessionInfo; settings: Settings; ffmpeg: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sessionId) return;
+    Promise.all([sessionInfo(sessionId), getSettings(), ffmpegAvailable()])
+      .then(([session, settings, ffmpeg]) => setDatos({ session, settings, ffmpeg }))
+      .catch((e) => setError(String(e)));
+  }, [sessionId]);
+  if (sessionId && error) {
+    return <div className="flex h-full items-center justify-center bg-[#161618] text-sm text-red-300">{error}</div>;
+  }
+  if (sessionId && !datos) {
+    return <div className="flex h-full items-center justify-center bg-[#161618] text-sm text-neutral-500">{t("Preparando la sesión…")}</div>;
+  }
+  if (datos?.session.format === "still") {
+    return <EditorFoto session={datos.session} settings={datos.settings} hasFfmpeg={datos.ffmpeg} />;
+  }
+  return <EditorVideo sessionId={sessionId} />;
+}
+
+function EditorVideo({ sessionId }: { sessionId: string }) {
   const t = useT();
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [frames, setFrames] = useState<FrameMeta[]>([]);

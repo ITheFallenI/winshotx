@@ -47,12 +47,12 @@ const bandera = (nombre, pordefecto) => {
 };
 
 const salida = resolve(args.find((a) => !a.startsWith("--")) ?? "ventana.png");
-const ancho = bandera("ancho", "840");
+const ancho = bandera("ancho", "1180");
 // El mismo alto que pide `tauri.conf.json`, para ver lo que de verdad entra sin rueda.
 // Estuvo en 640 mientras la ventana medía 510, así que las fotos enseñaban 130 px de más
 // y una sección que se salía por abajo parecía caber. Si se cambia el alto de la ventana,
 // se cambia aquí.
-const alto = bandera("alto", "620");
+const alto = bandera("alto", "760");
 const bienvenida = args.includes("--bienvenida");
 // Win+Mayús+S pedida pero todavía no conseguida, que es cuando sale el botón de aplicar.
 const teclaPendiente = args.includes("--tecla-pendiente");
@@ -111,6 +111,10 @@ const recorte = bandera("recorte", null);
 // En vez de una foto, escupe el DOM ya montado. Para cuando lo que falla no se ve mirando:
 // una medida que sale cero, una clase que no llegó, un estilo que el navegador no aplicó.
 const dom = args.includes("--dom");
+// La galería con capturas de mentira: una lista de PNG separados por comas que hacen de
+// miniaturas, repartidas en varios días y mezcladas con vídeos y GIF.
+const galeria = bandera("galeria", null);
+const FOTOS_GALERIA = galeria ? galeria.split(",") : [];
 // Cuantos pixeles de pantalla por pixel de CSS. Existe porque **Chrome tiene un ancho
 // minimo de ventana de unos 500 px**: al pedirle --window-size=284 pinta la pagina a 500 y
 // recorta la foto a 284, asi que la mitad derecha del menu de bandeja parecia no existir.
@@ -243,6 +247,23 @@ const RESPUESTAS = {
   session_frames: FOTOGRAMAS,
   frame_image: "/editor.png",
   ffmpeg_available: false,
+  gallery_list: {
+    directory: AJUSTES.saveDirectory,
+    total: galeria ? 14 : 0,
+    items: Array.from({ length: galeria ? 14 : 0 }, (_, i) => {
+      const kind = i % 5 === 3 ? "video" : i % 7 === 5 ? "gif" : "image";
+      const dia = i < 5 ? "2026-10-25" : i < 10 ? "2026-10-24" : "2026-10-20";
+      const ext = kind === "image" ? "png" : kind === "gif" ? "gif" : "mp4";
+      return {
+        path: `C:/capturas/${i}.${ext}`,
+        name: `winshotx ${dia} ${String(9 + i).padStart(2, "0")}-${String((i * 7) % 60).padStart(2, "0")}-12.${ext}`,
+        day: dia,
+        bytes: 180_000 + i * 97_000,
+        modified: Date.now() - i * 3_600_000 * (i < 5 ? 0.4 : i < 10 ? 6 : 30),
+        kind,
+      };
+    }),
+  },
 };
 
 const OVERLAY = {
@@ -286,7 +307,11 @@ const MOCK = `<script>
 window.__TAURI_INTERNALS__ = {
   metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
   convertFileSrc: (p) =>
-    String(p).endsWith(".mp4")
+    String(p).startsWith("/galeria/")
+      ? p
+      : String(p).startsWith("C:/capturas/") && String(p).endsWith(".png")
+        ? "/galeria/" + String(p).slice(12)
+      : String(p).endsWith(".mp4")
       ? "/editor.mp4"
       : ${anclada !== null}
         ? "/anclada.png"
@@ -314,6 +339,7 @@ Object.assign(window.__TAURI_INTERNALS__, {
     if (cmd === "overlay_bootstrap") return Promise.resolve(${JSON.stringify(OVERLAY)});
     // La pantalla congelada viaja por el IPC en PNG; aquí la sirve este mismo servidor.
     if (cmd === "freeze_png") return fetch("/freeze.png").then((r) => r.arrayBuffer());
+    if (cmd === "gallery_thumbnail") return Promise.resolve("/galeria/" + args.path.replace(/^.*[^0-9]([0-9]+)[.][a-z0-9]+$/, "$1") + ".png");
     if (cmd in tabla) return Promise.resolve(tabla[cmd]);
     if (cmd === "plugin:event|listen") {
       (this._oyentes[args.event] ??= []).push(args.handler);
@@ -379,7 +405,7 @@ addEventListener("load", () => {
     // Por POSICIÓN y no por el texto del botón: los rótulos cambian con el idioma, y
     // buscándolos por su nombre en español el guion dejaba de encontrarlos en inglés.
     const orden = ${JSON.stringify(Object.keys(ROTULOS))};
-    const botones = document.querySelectorAll("header nav button");
+    const botones = document.querySelectorAll("nav[data-tour=secciones] button");
     botones[orden.indexOf(${JSON.stringify(seccion)})]?.click();
   }, 500);
 });
@@ -409,7 +435,7 @@ addEventListener("load", () => {
   setTimeout(() => {
     // Por posición, no por texto: los rótulos cambian con el idioma. "La app" es la
     // cuarta sección, y dentro el botón del tour es el tercero de su bloque.
-    document.querySelectorAll("header nav button")[4]?.click();
+    document.querySelectorAll("nav[data-tour=secciones] button")[4]?.click();
     setTimeout(() => {
       [...document.querySelectorAll("[data-scroll-ajustes] button")]
         .find((b) => ["Empezar", "Start", "开始"].includes(b.textContent.trim()))?.click();
@@ -505,6 +531,12 @@ const server = createServer(async (req, res) => {
     const datos = await readFile(resolve(video));
     res.writeHead(200, { "content-type": "video/mp4", "content-length": datos.length });
     res.end(datos);
+    return;
+  }
+  const enGaleria = ruta.match(/^\/galeria\/(\d+)\.png$/);
+  if (enGaleria && FOTOS_GALERIA.length) {
+    res.writeHead(200, { "Content-Type": "image/png" });
+    res.end(await readFile(resolve(FOTOS_GALERIA[Number(enGaleria[1]) % FOTOS_GALERIA.length])));
     return;
   }
   if (ruta === "/editor.png" && editor) {

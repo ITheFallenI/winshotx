@@ -15,7 +15,7 @@ export function Marca({ className = "" }: { className?: string }) {
         <path d="M56 42v8a6 6 0 0 1-6 6h-8" />
         <path d="M22 56h-8a6 6 0 0 1-6-6v-8" />
       </g>
-      <g stroke="#fff" strokeWidth="8.5" strokeLinecap="round">
+      <g stroke="currentColor" strokeWidth="8.5" strokeLinecap="round">
         <path d="M24 24 40 40" />
         <path d="M40 24 24 40" />
       </g>

@@ -50,6 +50,7 @@ import {
   shortcutStatus,
   useAdminShortcuts,
   usePrintScreen,
+  trayMenuAction,
 } from "../../lib/ipc";
 import { ColorDelResalte } from "./ColorDelResalte";
 import { formatBytes } from "../../lib/format";
@@ -71,7 +72,9 @@ import {
 import { Segmented } from "../ui/Segmented";
 import { Switch } from "../ui/Switch";
 import { Row, RowButton, Section } from "./Section";
-import { SettingsHeader, type SeccionId } from "./SettingsHeader";
+import { BarraSecciones, SECCIONES, type SeccionId } from "./BarraSecciones";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Check } from "lucide-react";
 import { GuidedTour } from "./GuidedTour";
 import { BarraRapida } from "./BarraRapida";
 import { ShortcutField } from "./ShortcutField";
@@ -250,6 +253,18 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
   /** Mientras se reinicia el Explorador, que son un par de segundos largos. */
   const [aplicando, setAplicando] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Capturar o grabar desde aquí: la ventana se quita de en medio antes, que si no salía
+  // ella misma en la pantalla congelada, tapando lo que se quería capturar.
+  const empezar = async (accion: "capture" | "record") => {
+    try {
+      await getCurrentWindow().hide();
+      await new Promise((listo) => setTimeout(listo, 180));
+      await trayMenuAction(accion);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   /**
    * Si las fotos van por la captura moderna. Arranca en `true` porque es lo normal: si
@@ -456,16 +471,43 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-lienzo">
-      <SettingsHeader
+      <div className="flex min-h-0 flex-1">
+      <BarraSecciones
         activa={seccion}
         onCambiar={setSeccion}
         version={VERSION}
-        guardado={saved}
         onSalir={() => void quitApp()}
+        onCapturar={() => void empezar("capture")}
+        onGrabar={() => void empezar("record")}
+        atajoCaptura={settings.captureShortcut}
+        atajoGrabar={settings.recordShortcut}
       />
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative flex min-w-0 flex-1 flex-col">
       {seccion === "galeria" ? <GalleryApp embedded /> : <>
+      {/* La barra de arriba, como la de opciones del editor: qué se está mirando y si
+          lo último que se tocó ya está guardado. */}
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-linea bg-tarjeta px-4">
+        {(() => {
+          const actual = SECCIONES.find((x) => x.value === seccion)!;
+          const I = actual.icono;
+          return (
+            <>
+              <I className="size-4 text-marca" />
+              <h1 className="text-[13px] font-semibold text-titulo">{t(actual.label)}</h1>
+            </>
+          );
+        })()}
+        <span className="ms-auto flex items-center gap-1.5 text-[11.5px] text-emerald-400">
+          {saved && (
+            <>
+              <Check className="size-3.5" />
+              {t("Guardado")}
+            </>
+          )}
+        </span>
+      </div>
+      <div className="relative min-h-0 flex-1">
       <div className="h-full overflow-y-auto px-4 py-4" data-scroll-ajustes>
         {/* Dos columnas, que es para lo que se subio la navegacion arriba. Las columnas
             de las secciones con cuatro bloques se escriben a mano (ver «grabar» y «la
@@ -1214,7 +1256,7 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
                     hint={(settings.trayClickAction ?? "latestFolder") === "latestFolder" ? t("Abre la ubicación del último archivo guardado, incluso con Guardar como. Antes de guardar, abre la carpeta de capturas.") : undefined}
                     control={<select aria-label={t("Clic izquierdo")} value={settings.trayClickAction ?? "latestFolder"}
                       onChange={e => patch({ trayClickAction: e.target.value as TrayClickAction })}
-                      className="w-full rounded-md border border-linea-fuerte bg-hueco px-3 py-2 text-sm text-texto">
+                      className="h-8 w-full rounded-md border border-linea bg-hueco px-2.5 text-[12.5px] text-texto outline-none focus:border-marca">
                       <option value="latestFolder">{t("Carpeta de la última captura")}</option>
                       <option value="capture">{t("Capturar región")}</option>
                       <option value="record">{t("Grabar región")}</option>
@@ -1230,15 +1272,20 @@ export function SettingsApp({ onVerBienvenida, arrancarTour = false }: SettingsA
       </div>
       {/* El desvanecido dice «esto sigue»: cortado a hueso, lo de abajo no se busca. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-lienzo to-transparent" />
-      </>}
       </div>
-
-      {seccion !== "galeria" && <BarraRapida
+      {/* La barra de estado va bajo el contenido y no bajo la ventana entera: así la
+          columna de la izquierda llega hasta abajo en todas las secciones, como en el
+          editor, y la galería pone la suya en el mismo sitio. */}
+      <BarraRapida
         settings={settings}
         patch={patch}
         version={VERSION}
         recienActualizado={recienActualizado}
-      />}
+      />
+      </>}
+      </div>
+      </div>
+
 
       {tour && <GuidedTour onNavegar={setSeccion} onCerrar={() => setTour(false)} />}
 

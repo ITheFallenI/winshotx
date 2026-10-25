@@ -94,10 +94,10 @@ describe("elegir el formato", () => {
 
   it("una grabacion empieza en MP4 y una captura suelta en PNG", () => {
     const { unmount } = pintar();
-    expect(screen.getByText("MP4").className).toContain("bg-white/15");
+    expect(screen.getByText("MP4").className).toContain("bg-activo");
     unmount();
     pintar({ format: "still", frameCount: 1 });
-    expect(screen.getByText("PNG").className).toContain("bg-white/15");
+    expect(screen.getByText("PNG").className).toContain("bg-activo");
   });
 
   it("un titulo de seccion sin nada debajo no sale", () => {

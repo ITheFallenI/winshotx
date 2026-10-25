@@ -702,6 +702,46 @@ pub async fn copiar_texto(app: AppHandle, session_id: String, index: usize) -> R
     Ok(texto)
 }
 
+/// Los bytes que manda el editor de imagenes, sin pasar por JSON.
+///
+/// Una captura de 4K en PNG son varios megas, y como lista de numeros en JSON serian cuatro
+/// veces mas y un rato largo de ida. Van como cuerpo crudo de la llamada.
+fn bytes_del_cuerpo<'a>(request: &'a tauri::ipc::Request<'_>) -> Result<&'a [u8]> {
+    match request.body() {
+        tauri::ipc::InvokeBody::Raw(bytes) if !bytes.is_empty() => Ok(bytes),
+        _ => Err(AppError::Msg("no ha llegado ninguna imagen".into())),
+    }
+}
+
+/// Guarda la foto que ha dibujado el editor de imagenes, recortada y con sus marcas, para
+/// que `export_media` parta de ella (ver `exporter::APLANADA`). La sesion va en la cabecera
+/// `session` porque el cuerpo ya lo ocupan los bytes.
+#[tauri::command]
+pub async fn subir_aplanada(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<()> {
+    let id = request
+        .headers()
+        .get("session")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::Msg("falta la sesion".into()))?
+        .to_string();
+    let session = session_of(&app, &id)?;
+    let bytes = bytes_del_cuerpo(&request)?;
+    // Se comprueba que es una imagen de verdad antes de dejarla donde el exportador la va
+    // a buscar: un PNG roto se descubriria despues, a mitad de guardar, y con peor mensaje.
+    image::load_from_memory_with_format(bytes, image::ImageFormat::Png)?;
+    std::fs::write(session.dir.join(exporter::APLANADA), bytes)?;
+    Ok(())
+}
+
+/// Copia al portapapeles la foto que manda el editor de imagenes (Ctrl+C), sin escribir
+/// ningun archivo: copiar no es guardar.
+#[tauri::command]
+pub async fn copiar_imagen(request: tauri::ipc::Request<'_>) -> Result<()> {
+    let bytes = bytes_del_cuerpo(&request)?;
+    let image = image::load_from_memory_with_format(bytes, image::ImageFormat::Png)?.to_rgba8();
+    crate::platform::clipboard::copy_image(&image, bytes)
+}
+
 /// La marca que tapa esas palabras: su caja envolvente, con margen, de 0 a 1.
 fn caja_de(
     linea: &[crate::sensibles::Palabra],

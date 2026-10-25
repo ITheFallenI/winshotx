@@ -149,6 +149,17 @@ export const frameImage = (sessionId: string, index: number) =>
 export const exportMedia = (request: ExportRequest) =>
   invoke<ExportResult>("export_media", { request });
 
+/**
+ * La foto terminada del editor de imágenes, para que `export_media` la guarde tal cual.
+ * Va como bytes crudos y no como JSON: una captura 4K en PNG son varios megas.
+ */
+export const subirAplanada = async (sessionId: string, png: Blob) =>
+  invoke<void>("subir_aplanada", new Uint8Array(await png.arrayBuffer()), { headers: { session: sessionId } });
+
+/** Copia al portapapeles una foto en PNG, sin guardar ningún archivo. */
+export const copiarImagen = async (png: Blob) =>
+  invoke<void>("copiar_imagen", new Uint8Array(await png.arrayBuffer()));
+
 export const ffmpegAvailable = () => invoke<boolean>("ffmpeg_available");
 
 export const getSettings = () => invoke<Settings>("get_settings");

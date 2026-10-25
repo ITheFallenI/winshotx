@@ -13,6 +13,10 @@ use crate::state::AppState;
 
 pub const EVENT_PROGRESS: &str = "winshotx://export-progress";
 
+/// La foto tal y como la deja el editor de imagenes: recortada y con las marcas ya
+/// dibujadas. La escribe `subir_aplanada` dentro de la carpeta de la sesion.
+pub const APLANADA: &str = "aplanada.png";
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExportRequest {
@@ -76,6 +80,13 @@ pub struct ExportRequest {
     pub speed: f32,
     pub destination: Option<String>,
     pub copy_to_clipboard: bool,
+    /// Partir de la foto que dejo el editor de imagenes (`APLANADA`) en vez del fotograma.
+    ///
+    /// Ese editor dibuja las marcas el mismo, para que lo que se ve sea exactamente lo que
+    /// sale. Con esto puesto llegan sin marcas ni recorte, porque ya van dentro de la foto,
+    /// y aqui solo queda escalar, enmarcar y escribir el archivo.
+    #[serde(default)]
+    pub aplanada: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -301,7 +312,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
         "png" => {
             let path = destination_path(app, &request, "png")?;
             emit("reading", 0, 1);
-            let image = record::read_frame(&session, request.from)?;
+            let image = foto_de_partida(&session, &request)?;
             // Una foto no tiene zoom: la camara solo tiene sentido con el tiempo pasando.
             let recortes: Vec<Recorte> = request.crop.into_iter().collect();
             let image = enmarcar_y_anotar(image, width, height, marco, &request.annotations, &recortes, None);
@@ -313,7 +324,7 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
         "jpg" => {
             let path = destination_path(app, &request, "jpg")?;
             emit("reading", 0, 1);
-            let image = record::read_frame(&session, request.from)?;
+            let image = foto_de_partida(&session, &request)?;
             let recortes: Vec<Recorte> = request.crop.into_iter().collect();
             let image = enmarcar_y_anotar(image, width, height, marco, &request.annotations, &recortes, None);
             jpg::save(&image, &path, ancho_final, alto_final, request.quality)?;
@@ -432,6 +443,17 @@ pub fn export(app: &AppHandle, request: ExportRequest) -> Result<ExportResult> {
         copy_error,
         elapsed_ms: started.elapsed().as_millis() as u64,
     })
+}
+
+/// De donde sale una foto: lo que dejo el editor de imagenes, o el fotograma tal cual.
+fn foto_de_partida(session: &SessionData, request: &ExportRequest) -> Result<image::RgbaImage> {
+    if request.aplanada {
+        let ruta = session.dir.join(APLANADA);
+        return Ok(image::open(&ruta)
+            .map_err(|_| AppError::Msg("la imagen editada no ha llegado; vuelve a intentarlo".into()))?
+            .to_rgba8());
+    }
+    record::read_frame(session, request.from)
 }
 
 /// Recorta, escala, dibuja las marcas encima y despues pone el marco.
@@ -1272,6 +1294,7 @@ mod el_orden_de_exportar {
             speed: 1.0,
             destination: None,
             copy_to_clipboard: true,
+            aplanada: false,
         }
     }
 
@@ -1598,6 +1621,7 @@ mod la_camara_del_exportador {
             speed: 1.0,
             destination: None,
             copy_to_clipboard: false,
+            aplanada: false,
         }
     }
 

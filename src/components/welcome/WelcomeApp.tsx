@@ -106,7 +106,10 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-lienzo text-texto">
-      <div className="flex-1 px-9 pt-9">
+      {/* Centrado y con un ancho de lectura: la ventana abre grande y, pegado arriba a la
+          izquierda, dejaba media pantalla vacía. */}
+      <div className="flex min-h-0 flex-1 overflow-y-auto px-9 py-8">
+        <div className="m-auto w-full max-w-[860px]">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={paso}
@@ -114,7 +117,6 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -14 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className="h-full"
           >
             {paso === 0 && (
               <Hola
@@ -144,6 +146,7 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
           </motion.div>
         </AnimatePresence>
       </div>
+      </div>
 
       {error && (
         <p className="mx-9 mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-[11px] text-red-300">
@@ -151,7 +154,7 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
         </p>
       )}
 
-      <footer className="flex shrink-0 items-center justify-between border-t border-linea px-6 py-3">
+      <footer className="flex h-12 shrink-0 items-center justify-between border-t border-linea bg-tarjeta px-4">
         <span className="flex items-center gap-1.5">
           {PASOS.map((nombre, i) => (
             <span
@@ -176,7 +179,7 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
             <button
               type="button"
               onClick={() => setPaso((p) => p - 1)}
-              className="rounded-lg px-3 py-1.5 text-xs text-apagado transition-colors hover:bg-realce hover:text-titulo"
+              className="flex h-8 items-center rounded-md px-3 text-[12.5px] text-apagado transition-colors hover:bg-realce hover:text-titulo"
             >
               {t("Atrás")}
             </button>
@@ -185,7 +188,7 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
             <button
               type="button"
               onClick={() => setPaso((p) => p + 1)}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+              className="flex h-8 items-center rounded-md bg-marca px-4 text-[12.5px] font-medium text-white transition hover:brightness-110"
             >
               {paso === 0 ? t("Empezar") : t("Siguiente")}
             </button>
@@ -193,7 +196,7 @@ export function WelcomeApp({ onDone }: { onDone: () => void }) {
             <button
               type="button"
               onClick={terminar}
-              className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
+              className="flex h-8 items-center rounded-md bg-marca px-4 text-[12.5px] font-medium text-white transition hover:brightness-110"
             >
               {t("Todo listo")}
             </button>
@@ -304,7 +307,7 @@ function Hola({
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-linea bg-tarjeta p-4">
+        <div className="rounded-lg border border-linea bg-tarjeta p-4">
           <span className="flex items-center gap-2 text-[13px] font-medium text-texto">
             <Camera className="size-4 text-tenue" />
             {t("Capturar una región")}
@@ -323,7 +326,7 @@ function Hola({
           />
           <Ocupado visible={!!ajustes.captureShortcut.trim() && !atajos.capture} />
         </div>
-        <div className="rounded-xl border border-linea bg-tarjeta p-4">
+        <div className="rounded-lg border border-linea bg-tarjeta p-4">
           <span className="flex items-center gap-2 text-[13px] font-medium text-texto">
             <Video className="size-4 text-tenue" />
             {t("Grabar en GIF o vídeo")}
@@ -366,7 +369,7 @@ function TarjetaEstilo({ elegido, onClick, titulo, resumen, pasos, nota }: Tarje
       type="button"
       onClick={onClick}
       aria-pressed={elegido}
-      className={`relative flex flex-col rounded-2xl border p-4 text-left transition-colors ${
+      className={`relative flex flex-col rounded-lg border p-4 text-left transition-colors ${
         elegido
           ? "border-blue-500/70 bg-blue-500/10"
           : "border-linea bg-tarjeta hover:border-linea-viva"
@@ -470,7 +473,7 @@ function TeclaImprPant({
           disabled={ocupado}
           onClick={() => onElegir(true)}
           aria-pressed={estado?.enabled === true}
-          className={`rounded-2xl border p-4 text-left transition-colors disabled:opacity-50 ${
+          className={`rounded-lg border p-4 text-left transition-colors disabled:opacity-50 ${
             estado?.enabled
               ? "border-blue-500/70 bg-blue-500/10"
               : "border-linea bg-tarjeta hover:border-linea-viva"
@@ -493,7 +496,7 @@ function TeclaImprPant({
           disabled={ocupado}
           onClick={() => onElegir(false)}
           aria-pressed={estado !== null && !estado.enabled}
-          className={`rounded-2xl border p-4 text-left transition-colors disabled:opacity-50 ${
+          className={`rounded-lg border p-4 text-left transition-colors disabled:opacity-50 ${
             estado !== null && !estado.enabled
               ? "border-blue-500/70 bg-blue-500/10"
               : "border-linea bg-tarjeta hover:border-linea-viva"
@@ -562,7 +565,7 @@ function Final({
         sub={t("Esto es lo que queda configurado. Todo se cambia después desde el icono de la bandeja.")}
       />
 
-      <div className="mt-5 divide-y divide-linea-tenue overflow-hidden rounded-xl border border-linea bg-tarjeta">
+      <div className="mt-5 divide-y divide-linea-tenue overflow-hidden rounded-lg border border-linea bg-tarjeta">
         <div className="flex items-center justify-between px-4 py-2.5">
           <span className="text-[13px] text-suave">{t("Capturar una región")}</span>
           <span className="flex items-center gap-2">

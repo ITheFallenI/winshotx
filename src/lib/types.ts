@@ -268,6 +268,8 @@ export interface ExportRequest {
   /** null = carpeta por defecto de los ajustes. */
   destination: string | null;
   copyToClipboard: boolean;
+  /** Guardar la foto que dejó el editor de imágenes (`subirAplanada`) en vez del fotograma. */
+  aplanada?: boolean;
 }
 
 import type { Anotacion } from "./anotaciones";

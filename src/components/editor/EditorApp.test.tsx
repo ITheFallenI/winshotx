@@ -43,8 +43,8 @@ function preparar(region = VERTICAL, mp4Path: string | null = null, format = "st
 }
 
 /** El editor carga por `invoke`, así que hay que esperar a que deje de decir «preparando». */
-async function abrir(region = VERTICAL) {
-  preparar(region);
+async function abrir(region = VERTICAL, format = "video") {
+  preparar(region, null, format);
   const vista = render(<EditorApp sessionId="s1" />);
   await waitFor(() => expect(screen.queryByText("Preparando la sesión…")).toBeNull());
   return vista;
@@ -193,7 +193,7 @@ describe("la vista previa del estudio", () => {
   });
 
   it("una captura fija no la lleva: no tiene tiempo dentro", async () => {
-    const vista = await abrir();
+    const vista = await abrir(VERTICAL, "still");
     expect(vista.container.querySelector("[data-capa-estudio]")).toBeNull();
     expect(llamadas.some((l) => l.comando === "session_studio")).toBe(false);
   });
@@ -292,7 +292,7 @@ describe("el botón de reproducir", () => {
     // Una captura es un fotograma y ya: ni se reproduce, ni tiene principio y final que
     // marcar. Cuatro botones apagados que hay que leer para descartarlos son peor que
     // ninguno.
-    await abrir();
+    await abrir(VERTICAL, "still");
     expect(screen.queryByText("Preparando el vídeo…")).toBeNull();
     expect(hayPlay()).toBeNull();
     expect(screen.queryByRole("button", { name: /Inicio|Start/ })).toBeNull();
@@ -303,7 +303,7 @@ describe("el botón de reproducir", () => {
   it("una captura tampoco enseña la tira de fotogramas", async () => {
     // Una captura es UN fotograma: la tira se quedaba con una miniatura sola y un
     // «Fotograma 1 de 1» debajo, ocupando cien píxeles de los que mide la imagen.
-    await abrir();
+    await abrir(VERTICAL, "still");
     expect(screen.queryByText(/Fotograma 1 de/)).toBeNull();
   });
 

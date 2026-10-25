@@ -106,6 +106,64 @@ fn recycle_capture(path: PathBuf) -> Result<()> {
     }).join().map_err(|_| AppError::Msg("Recycle Bin operation failed.".into()))?
 }
 
+/// La miniatura que ensenna el Explorador para un video o un GIF: un fotograma de dentro.
+///
+/// Se le pide a Windows y no a un decodificador propio porque Windows ya sabe abrir MP4 y
+/// GIF (es lo que pinta las miniaturas del Explorador) y asi no hace falta meter FFmpeg ni
+/// leer el video entero. Va en un hilo propio con COM de apartamento, que es lo que piden
+/// los proveedores de miniaturas del Shell.
+#[cfg(windows)]
+fn miniatura_de_windows(path: &Path) -> Result<image::RgbaImage> {
+    let path = path.to_path_buf();
+    std::thread::spawn(move || -> Result<image::RgbaImage> {
+        use windows::{core::HSTRING, Win32::{Foundation::SIZE,
+            Graphics::Gdi::{CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS},
+            System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED},
+            UI::Shell::{IShellItemImageFactory, SHCreateItemFromParsingName, SIIGBF_BIGGERSIZEOK, SIIGBF_THUMBNAILONLY}}};
+        unsafe {
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok()?;
+            struct ComGuard;
+            impl Drop for ComGuard { fn drop(&mut self) { unsafe { CoUninitialize(); } } }
+            let _guard = ComGuard;
+            let fabrica: IShellItemImageFactory = SHCreateItemFromParsingName(&HSTRING::from(shell_path(&path)), None)?;
+            let mapa = fabrica.GetImage(SIZE { cx: 640, cy: 360 }, SIIGBF_THUMBNAILONLY | SIIGBF_BIGGERSIZEOK)?;
+            let mut bm = BITMAP::default();
+            let leido = GetObjectW(mapa.into(), std::mem::size_of::<BITMAP>() as i32, Some(&mut bm as *mut BITMAP as *mut _));
+            let (w, h) = (bm.bmWidth, bm.bmHeight.abs());
+            let mut datos = vec![0u8; (w.max(0) * h * 4) as usize];
+            let mut info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: w,
+                    // Negativo: las filas de arriba abajo, como las quiere `image`.
+                    biHeight: -h,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let dc = CreateCompatibleDC(None);
+            let filas = GetDIBits(dc, mapa, 0, h as u32, Some(datos.as_mut_ptr() as *mut _), &mut info, DIB_RGB_COLORS);
+            let _ = DeleteDC(dc);
+            let _ = DeleteObject(mapa.into());
+            if leido == 0 || w <= 0 || filas == 0 {
+                return Err("Windows no ha dado una miniatura para este archivo.".into());
+            }
+            for p in datos.chunks_exact_mut(4) { p.swap(0, 2); }
+            // Las miniaturas de video llegan sin alfa (todo a cero): se ven opacas.
+            if datos.chunks_exact(4).all(|p| p[3] == 0) {
+                for p in datos.chunks_exact_mut(4) { p[3] = 255; }
+            }
+            image::RgbaImage::from_raw(w as u32, h as u32, datos).ok_or_else(|| "Miniatura con una medida imposible.".into())
+        }
+    }).join().map_err(|_| AppError::Msg("No se ha podido hacer la miniatura.".into()))?
+}
+
+#[cfg(not(windows))]
+fn miniatura_de_windows(_path: &Path) -> Result<image::RgbaImage> { Err(AppError::Unsupported) }
+
 #[cfg(windows)]
 fn shell_path(path: &Path) -> String {
     let text = path.to_string_lossy();
@@ -149,7 +207,11 @@ pub async fn gallery_thumbnail(app: AppHandle, path: String) -> Result<String> {
     std::fs::create_dir_all(&dir)?;
     let dest = dir.join(format!("{:x}.png", hash.finish()));
     if !dest.exists() {
-        let image = crate::media_import::read_image(&path)?;
+        let image = if media_kind(&path) == Some("image") {
+            crate::media_import::read_image(&path)?
+        } else {
+            miniatura_de_windows(&path)?
+        };
         let thumbnail = image::imageops::thumbnail(&image, 320, 180);
         thumbnail.save(&dest)?;
     }
@@ -208,6 +270,19 @@ pub async fn open_gallery(app: AppHandle) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// Con un video de verdad: `WINSHOTX_VIDEO=ruta cargo test miniatura_de_video -- --ignored`.
+    #[cfg(windows)]
+    #[test]
+    #[ignore]
+    fn miniatura_de_video() {
+        let ruta = std::env::var("WINSHOTX_VIDEO").expect("WINSHOTX_VIDEO");
+        let imagen = miniatura_de_windows(Path::new(&ruta)).unwrap();
+        assert!(imagen.width() > 0 && imagen.height() > 0);
+        // Un fotograma de verdad, no un rectangulo de un solo color.
+        let primero = imagen.get_pixel(0, 0);
+        assert!(imagen.pixels().any(|p| p != primero));
+        imagen.save(std::env::temp_dir().join("winshotx-miniatura-video.png")).unwrap();
+    }
     #[cfg(windows)]
     #[test]
     fn shell_paths_keep_drive_and_unc_names_without_extended_prefix() {

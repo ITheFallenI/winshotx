@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { X } from "lucide-react";
-import type { SeccionId } from "./SettingsHeader";
+import type { SeccionId } from "./BarraSecciones";
 import { useT } from "../../lib/i18n";
 
 /**

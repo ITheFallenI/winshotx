@@ -52,7 +52,7 @@ export function BarraRapida({ settings, patch, version, recienActualizado }: Pro
   ];
 
   return (
-    <footer className="flex h-11 shrink-0 items-center gap-2.5 border-t border-linea px-3">
+    <footer className="flex h-9 shrink-0 items-center gap-2.5 border-t border-linea bg-tarjeta px-2">
       <Segmented
         compacto
         ajustado

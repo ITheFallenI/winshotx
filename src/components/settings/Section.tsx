@@ -18,22 +18,21 @@ interface SectionProps {
 }
 
 /**
- * Un bloque de ajustes: una tarjeta con su nombre arriba, en el azul de la marca, y una
- * linea fina separando cada fila de la siguiente.
+ * Un bloque de ajustes: una tarjeta con su nombre arriba y una linea fina separando cada
+ * fila de la siguiente.
  *
- * El rotulo va DENTRO de la tarjeta, no flotando encima: como titulo suelto en mayusculas
- * gritaba un encabezado que el propio marco del bloque ya anuncia, y con cuatro bloques
- * seguidos la pantalla se leia como una lista de cajas sueltas en vez de como una pagina.
- * Es el mismo patron que usa VoCript, que es de donde viene esta forma.
+ * El rotulo va DENTRO de la tarjeta y en el estilo de los del panel del editor de imagenes
+ * (pequenno, en mayusculas y gris, como «Capas» o «Formato»): la aplicacion entera se lee
+ * igual que el editor, que es la parte que mejor se usa.
  */
 export function Section({ title, children, tour, className = "" }: SectionProps) {
   return (
     <section
       data-tour={tour}
-      className={`mb-3 w-full rounded-xl border border-linea bg-tarjeta ${className}`}
+      className={`mb-3 w-full overflow-hidden rounded-lg border border-linea bg-tarjeta ${className}`}
     >
       {title && (
-        <h2 className="border-b border-linea px-4 py-3 text-[14.5px] font-semibold text-marca">
+        <h2 className="border-b border-linea-tenue px-3.5 pt-2.5 pb-2 text-[10.5px] font-semibold tracking-wider text-tenue uppercase">
           {title}
         </h2>
       )}
@@ -92,19 +91,19 @@ export function Row({
         <span className="flex w-4 shrink-0 justify-center text-tenue">{icon}</span>
       )}
       <span className="min-w-0">
-        <span className="block truncate text-[14px] font-medium text-titulo">{label}</span>
+        <span className="block truncate text-[13px] font-medium text-titulo">{label}</span>
         {/* Dos lineas, no una: en una columna de 390 px la explicacion se cortaba a la
             mitad, y son frases que hay que leer enteras para decidir ("quitarla es lo
             unico que la calla del todo"). El nombre de arriba si se corta, porque es
             corto y el hueco es suyo. */}
-        {hint && <span className={`line-clamp-2 text-[12.5px] ${TONO[tone]}`}>{hint}</span>}
+        {hint && <span className={`line-clamp-2 text-[12px] ${TONO[tone]}`}>{hint}</span>}
       </span>
     </span>
   );
 
   if (stacked) {
     return (
-      <div className="px-4 py-3">
+      <div className="px-3.5 py-2.5">
         <div className="mb-2.5">{texto}</div>
         {control}
       </div>
@@ -112,7 +111,7 @@ export function Row({
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-2.5">
+    <div className="flex min-h-11 items-center justify-between gap-4 px-3.5 py-2">
       {texto}
       <span className="shrink-0">{control}</span>
     </div>
@@ -143,10 +142,10 @@ export function RowButton({
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-md border px-2.5 py-1 text-[11.5px] whitespace-nowrap transition-colors disabled:opacity-40 ${
+      className={`h-7 rounded-md px-2.5 text-[12px] font-medium whitespace-nowrap transition-colors disabled:opacity-40 ${
         danger
-          ? "border-red-500/50 bg-red-500/15 text-red-300 hover:bg-red-500/25"
-          : "border-linea-fuerte text-suave hover:bg-realce hover:text-titulo"
+          ? "bg-red-500/15 text-red-300 hover:bg-red-500/25"
+          : "bg-realce text-texto hover:bg-activo hover:text-titulo"
       }`}
     >
       {children}

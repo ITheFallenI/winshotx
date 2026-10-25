@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Clipboard, Cpu, FolderDown, FolderOpen, Link2, Save, Sparkles, Unlink2, Zap } from "lucide-react";
-import { exportMedia, pickDirectory, pickSaveFile, revealInExplorer } from "../../lib/ipc";
+import { exportMedia, pickDirectory, pickSaveFile, revealInExplorer, subirAplanada } from "../../lib/ipc";
 import { formatBytes } from "../../lib/format";
 import {
   EVENTS,
@@ -81,6 +81,17 @@ interface Props {
   /** Poner o quitar el marco de recorte desde aquí, con una proporción ya hecha. */
   onRecorte?: (recorte: Recorte | null) => void;
   onSaved?: (signature: string) => void;
+  /**
+   * La foto terminada que pinta el editor de imágenes, recortada y con sus marcas. Con
+   * esto puesto se guarda ESO, y Rust ya no dibuja nada encima (ver `exporter::APLANADA`).
+   */
+  aplanar?: () => Promise<Blob>;
+  /** Lo que identifica lo editado, para saber después si queda algo sin guardar. */
+  firma?: string;
+  /** Dentro de otra columna: sin ancho ni borde propios. */
+  incrustado?: boolean;
+  /** Avisa del tamaño al que se va a guardar, para enseñarlo en la vista previa. */
+  onMedidaSalida?: (ancho: number, alto: number) => void;
 }
 
 export function ExportPanel({
@@ -96,6 +107,10 @@ export function ExportPanel({
   onEstudio,
   onRecorte,
   onSaved,
+  aplanar,
+  firma,
+  incrustado = false,
+  onMedidaSalida,
 }: Props) {
   const t = useT();
   const [format, setFormat] = useState<ExportFormat>(() => {
@@ -155,6 +170,10 @@ export function ExportPanel({
     onEstudio?.({ zoom, cursor, aros, teclas });
   }, [zoom, cursor, aros, teclas, onEstudio]);
 
+  useEffect(() => {
+    onMedidaSalida?.(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
+  }, [width, height, onMedidaSalida]);
+
   /**
    * Lo que mide de verdad lo que se va a exportar, con el recorte ya aplicado.
    *
@@ -213,13 +232,15 @@ export function ExportPanel({
   }, [format, videoCodec, width, height, margen, quality, fps, inIndex, outIndex, session.fps, velocidad]);
 
   const run = async (copyToClipboard: boolean, file: string | null = null) => {
-    const editSignature = JSON.stringify({ annotations: anotaciones, crop: recorte });
+    const editSignature = firma ?? JSON.stringify({ annotations: anotaciones, crop: recorte });
     // Sin esto, dos pulsaciones seguidas lanzan dos exportaciones a la vez.
     if (progress !== null) return;
     setError(null);
     setResult(null);
     setProgress({ stage: "reading", done: 0, total: 1 });
     try {
+      const usarAplanada = !!aplanar && esUnaFoto(format);
+      if (usarAplanada) await subirAplanada(session.id, await aplanar());
       const res = await exportMedia({
         sessionId: session.id,
         format,
@@ -246,8 +267,10 @@ export function ExportPanel({
         margin: margen,
         background: fondo,
         shadow: sombra,
-        annotations: anotaciones,
-        crop: recorte,
+        // Con la foto ya aplanada, las marcas y el recorte van dentro de ella.
+        annotations: usarAplanada ? [] : anotaciones,
+        crop: usarAplanada ? null : recorte,
+        aplanada: usarAplanada,
         destination: directory || null,
         file,
         copyToClipboard,
@@ -297,7 +320,7 @@ export function ExportPanel({
   };
 
   return (
-    <aside className="flex w-[292px] shrink-0 flex-col border-l border-white/8 bg-black/20">
+    <aside className={incrustado ? "flex min-h-0 flex-1 flex-col" : "flex w-[292px] shrink-0 flex-col border-l border-white/8 bg-black/20"}>
       {/*
         Arriba, los ajustes, que se desplazan. Abajo, guardar, que no.
 
@@ -308,9 +331,9 @@ export function ExportPanel({
       <div className="relative min-h-0 flex-1">
       <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
       <div>
-        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">{t("Formato")}</span>
-        <div className="grid grid-cols-4 gap-1 rounded-lg bg-black/40 p-1">
-          {FORMATS.map((f) => (
+        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-tenue uppercase">{t("Formato")}</span>
+        <div className={`grid ${session.format === "still" ? "grid-cols-2" : "grid-cols-4"} gap-1 rounded-lg bg-hueco p-1`}>
+          {FORMATS.filter((f) => session.format !== "still" || esUnaFoto(f.id)).map((f) => (
             <button
               key={f.id}
               type="button"
@@ -318,8 +341,8 @@ export function ExportPanel({
               title={t(f.hint)}
               className={`rounded-md py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
                 format === f.id
-                  ? "bg-white/15 text-white shadow-sm"
-                  : "text-neutral-400 hover:text-white"
+                  ? "bg-activo text-titulo shadow-sm"
+                  : "text-apagado hover:text-titulo"
               }`}
             >
               {f.label}
@@ -330,7 +353,7 @@ export function ExportPanel({
 
       {format === "mp4" && (
         <div>
-          <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <span className="mb-2 block text-[10px] font-semibold tracking-wider text-tenue uppercase">
             {t("Códec de vídeo")}
           </span>
           <div className="flex gap-1">
@@ -341,14 +364,14 @@ export function ExportPanel({
                 aria-pressed={videoCodec === codec}
                 onClick={() => setVideoCodec(codec)}
                 className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium ${
-                  videoCodec === codec ? "bg-blue-500 text-white" : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                  videoCodec === codec ? "bg-blue-500 text-white" : "bg-tarjeta text-suave hover:bg-realce"
                 }`}
               >
                 {codec === "h264" ? "H.264" : "H.265 (HEVC)"}
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-[11px] text-neutral-400">
+          <p className="mt-1.5 text-[11px] text-apagado">
             {videoCodec === "h265"
               ? t("Archivos más pequeños. Requiere compatibilidad con HEVC para codificar y reproducir.")
               : t("Mayor compatibilidad para reproducir y compartir.")}
@@ -382,7 +405,7 @@ export function ExportPanel({
       {/* Debajo de los fps a propósito: los dos hablan del ritmo, y así se leen juntos. */}
       {!esUnaFoto(format) && (
         <div>
-          <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+          <span className="mb-2 block text-[10px] font-semibold tracking-wider text-tenue uppercase">
             {t("Velocidad")}
           </span>
           <div className="flex gap-1">
@@ -395,7 +418,7 @@ export function ExportPanel({
                 className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-medium transition ${
                   velocidad === v
                     ? "bg-blue-500 text-white"
-                    : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                    : "bg-tarjeta text-suave hover:bg-realce"
                 }`}
               >
                 {v}×
@@ -403,7 +426,7 @@ export function ExportPanel({
             ))}
           </div>
           {velocidad !== 1 && (
-            <p className="mt-1.5 text-[11px] text-neutral-400">
+            <p className="mt-1.5 text-[11px] text-apagado">
               {velocidad > 1
                 ? t("dura {n} veces menos, y sale sin sonido", { n: velocidad })
                 : t("dura el doble, y sale sin sonido")}
@@ -413,7 +436,7 @@ export function ExportPanel({
       )}
 
       <div>
-        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">{t("Dimensiones")}</span>
+        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-tenue uppercase">{t("Dimensiones")}</span>
         {/*
           La proporción, de un clic.
 
@@ -424,7 +447,7 @@ export function ExportPanel({
         */}
         {onRecorte && (
           <>
-          <span className="mb-1.5 block text-[11px] text-neutral-500">{t("Proporción")}</span>
+          <span className="mb-1.5 block text-[11px] text-tenue">{t("Proporción")}</span>
           <div className="mb-2.5 flex gap-1">
             {PROPORCIONES.map((p) => {
               const puesta =
@@ -443,7 +466,7 @@ export function ExportPanel({
                   className={`flex-1 rounded-lg px-1 py-1.5 text-[11px] font-medium tabular-nums transition-colors ${
                     puesta
                       ? "bg-blue-500 text-white"
-                      : "bg-white/5 text-neutral-300 hover:bg-white/10"
+                      : "bg-tarjeta text-suave hover:bg-realce"
                   }`}
                 >
                   {p.id}
@@ -456,7 +479,7 @@ export function ExportPanel({
               disabled={recorte === null}
               title={t("Quitar el recorte")}
               aria-label={t("Quitar el recorte")}
-              className="rounded-lg px-2 py-1.5 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-30"
+              className="rounded-lg px-2 py-1.5 text-[11px] text-apagado transition-colors hover:bg-realce hover:text-titulo disabled:opacity-30"
             >
               ×
             </button>
@@ -470,7 +493,7 @@ export function ExportPanel({
             onClick={() => setLocked((l) => !l)}
             title={locked ? t("Proporción bloqueada") : t("Proporción libre")}
             className={`mb-1.5 flex size-8 shrink-0 items-center justify-center rounded-md transition-colors ${
-              locked ? "bg-white/10 text-blue-400" : "text-neutral-500 hover:text-white"
+              locked ? "bg-realce text-blue-400" : "text-tenue hover:text-titulo"
             }`}
           >
             {locked ? <Link2 className="size-4" /> : <Unlink2 className="size-4" />}
@@ -488,7 +511,7 @@ export function ExportPanel({
                 setWidth(Math.round((fuente.width * pct) / 100));
                 setHeight(Math.round((fuente.height * pct) / 100));
               }}
-              className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-white"
+              className="rounded-md bg-tarjeta px-2 py-1 text-[11px] text-apagado transition-colors hover:bg-realce hover:text-titulo"
             >
               {pct}%
             </button>
@@ -501,8 +524,8 @@ export function ExportPanel({
           (una grabacion sin clics tambien tiene raton); el zoom y los aros solo con
           clics, que un interruptor que no puede hacer nada es peor que no tenerlo. */}
       {!esUnaFoto(format) && (
-        <div className="space-y-2 border-t border-white/8 pt-3">
-          <span className="block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+        <div className="space-y-2 border-t border-linea pt-3">
+          <span className="block text-[10px] font-semibold tracking-wider text-tenue uppercase">
             {t("Lo que se dibuja encima")}
           </span>
           <Slider
@@ -523,7 +546,7 @@ export function ExportPanel({
           {cursor > 0 && (
             <p
               className={`text-[11px] leading-snug ${
-                session.cursorBaked ? "text-amber-400/90" : "text-neutral-500"
+                session.cursorBaked ? "text-amber-400/90" : "text-tenue"
               }`}
             >
               {session.cursorBaked
@@ -553,14 +576,14 @@ export function ExportPanel({
             // contraseña tecleada mientras se grababa acabe dentro del vídeo.
             hint={t("solo con Ctrl, Alt o Win: lo que escribes no sale")}
           />
-          <p className="text-[11px] leading-snug text-neutral-500">
+          <p className="text-[11px] leading-snug text-tenue">
             {t("La vista previa ya enseña todo esto: lo que ves es lo que sale.")}
           </p>
         </div>
       )}
 
-      <div className="border-t border-white/8 pt-3">
-        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <div className="border-t border-linea pt-3">
+        <span className="mb-2 block text-[10px] font-semibold tracking-wider text-tenue uppercase">
           {t("El marco de alrededor")}
         </span>
         <Slider
@@ -586,7 +609,7 @@ export function ExportPanel({
                   aria-pressed={fondo === f.id}
                   style={{ background: f.muestra }}
                   className={`size-7 rounded-lg border-2 transition-colors ${
-                    fondo === f.id ? "border-blue-500" : "border-white/15 hover:border-white/40"
+                    fondo === f.id ? "border-blue-500" : "border-linea-fuerte hover:border-linea-viva"
                   }`}
                 />
               ))}
@@ -599,8 +622,8 @@ export function ExportPanel({
       </div>
 
       {(format === "mp4" || format === "gif" || (hasFfmpeg && !esUnaFoto(format))) && (
-      <div className="space-y-0.5 border-t border-white/8 pt-3">
-        <span className="mb-1.5 block text-[10px] font-semibold tracking-wider text-neutral-500 uppercase">
+      <div className="space-y-0.5 border-t border-linea pt-3">
+        <span className="mb-1.5 block text-[10px] font-semibold tracking-wider text-tenue uppercase">
           {t("El archivo")}
         </span>
         {format === "mp4" && (
@@ -631,23 +654,23 @@ export function ExportPanel({
 
       </div>
       {/* El desvanecido dice «esto sigue»: cortado a hueso, lo de abajo no se busca. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-[#131315] to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-5 bg-gradient-to-t from-lienzo to-transparent" />
       </div>
 
-      <div className="shrink-0 space-y-2 border-t border-white/8 bg-black/35 p-3">
+      <div className="shrink-0 space-y-2 border-t border-linea bg-hueco p-3">
         <button
           type="button"
           onClick={() => void pickDirectory().then((dir) => dir && setDirectory(dir))}
           title={t("Elegir dónde se guarda")}
-          className="flex w-full items-center gap-2 rounded-lg border border-white/8 bg-black/30 px-2.5 py-1.5 text-left transition-colors hover:border-white/20"
+          className="flex w-full items-center gap-2 rounded-lg border border-linea bg-hueco px-2.5 py-1.5 text-left transition-colors hover:border-linea-viva"
         >
-          <FolderOpen className="size-4 shrink-0 text-neutral-400" />
-          <span className="truncate text-[11px] text-neutral-400" title={directory}>
+          <FolderOpen className="size-4 shrink-0 text-apagado" />
+          <span className="truncate text-[11px] text-apagado" title={directory}>
             {directory || t("Elegir carpeta…")}
           </span>
         </button>
 
-        <div className="flex items-center justify-between text-[11px] text-neutral-500">
+        <div className="flex items-center justify-between text-[11px] text-tenue">
           <span className="flex items-center gap-1.5">
             {useFfmpeg && hasFfmpeg ? (
               <Cpu className="size-3.5" />
@@ -660,7 +683,7 @@ export function ExportPanel({
         </div>
 
         {progress && (
-          <div className="h-1 overflow-hidden rounded-full bg-white/10">
+          <div className="h-1 overflow-hidden rounded-full bg-realce">
             <div
               className="h-full bg-blue-500 transition-[width] duration-150"
               style={{
@@ -686,7 +709,7 @@ export function ExportPanel({
             onClick={() => void runAs(false)}
             title={t("Elegir dónde guardar (Ctrl+Mayús+S)")}
             aria-label={t("Elegir dónde guardar")}
-            className="flex h-9 items-center justify-center rounded-lg border border-white/10 px-3 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+            className="flex h-9 items-center justify-center rounded-lg border border-linea-fuerte px-3 text-suave transition-colors hover:bg-realce hover:text-titulo disabled:opacity-50"
           >
             <FolderDown className="size-4" />
           </button>
@@ -695,7 +718,7 @@ export function ExportPanel({
             disabled={progress !== null}
             onClick={() => void run(true)}
             title={t("Exportar y copiar al portapapeles")}
-            className="flex h-9 items-center justify-center rounded-lg border border-white/10 px-3 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
+            className="flex h-9 items-center justify-center rounded-lg border border-linea-fuerte px-3 text-suave transition-colors hover:bg-realce hover:text-titulo disabled:opacity-50"
           >
             <Clipboard className="size-4" />
           </button>
@@ -706,7 +729,7 @@ export function ExportPanel({
             {/* Copiar es lo que más se usa para mandarle el vídeo a alguien, así que se
                 dice en su propia línea y no escondido entre el tamaño y la carpeta. */}
             {result.copied && (
-              <p className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-2 text-[12px] font-medium text-emerald-300">
+              <p className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-2 text-[12px] font-medium text-emerald-500">
                 <Clipboard className="size-3.5 shrink-0" />
                 {/* Un vídeo no se pega como imagen: va como archivo (para el explorador y
                     los chats) y como su ruta escrita (para cualquier caja de texto). Se
@@ -720,14 +743,14 @@ export function ExportPanel({
             {/* Y si no se pudo, se dice por qué. Antes el fallo se tragaba y pulsar copiar
                 parecía no hacer absolutamente nada. */}
             {result.copyError && (
-              <p className="rounded-lg bg-red-500/10 px-2.5 py-2 text-[11px] text-red-300">
+              <p className="rounded-lg bg-red-500/10 px-2.5 py-2 text-[11px] text-red-500">
                 {t("No se ha podido copiar")}: {t(result.copyError)}
               </p>
             )}
             <button
               type="button"
               onClick={() => void revealInExplorer(result.path)}
-              className="flex w-full items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-2 text-left text-[11px] text-neutral-300 transition-colors hover:bg-white/10"
+              className="flex w-full items-center gap-1.5 rounded-lg bg-tarjeta px-2.5 py-2 text-left text-[11px] text-suave transition-colors hover:bg-realce"
             >
               <Sparkles className="size-3.5 shrink-0" />
               <span className="truncate">
@@ -738,7 +761,7 @@ export function ExportPanel({
         )}
 
         {error && (
-          <p className="rounded-lg bg-red-500/10 px-2.5 py-2 text-[11px] text-red-300">{error}</p>
+          <p className="rounded-lg bg-red-500/10 px-2.5 py-2 text-[11px] text-red-500">{error}</p>
         )}
       </div>
     </aside>

@@ -972,21 +972,93 @@ pub fn open_editor(app: &AppHandle, session_id: &str) -> Result<()> {
         OVERLAY_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     );
     let url = WebviewUrl::App(format!("editor.html?session={session_id}").into());
+    let medida = medida_del_editor(app);
     let window = WebviewWindowBuilder::new(app, &label, url)
         .additional_browser_args(NAVEGADOR_ARGS)
         .title("winshotx · editor")
         .decorations(true)
         .resizable(true)
-        .inner_size(1080.0, 700.0)
-        .min_inner_size(760.0, 520.0)
-        .center()
-        .visible(true)
+        .inner_size(medida.width, medida.height)
+        .min_inner_size(EDITOR_MINIMO.0, EDITOR_MINIMO.1)
+        .maximized(medida.maximized)
+        .visible(false)
         .build()?;
     // Sin `rounded_corners`: eso es para las ventanas sin marco. El marco del sistema ya
     // trae las esquinas que Windows quiere, y forzarlas encima deja un borde raro.
-    let _ = window.set_min_size(Some(LogicalSize::new(760.0, 520.0)));
+    let _ = window.set_min_size(Some(LogicalSize::new(EDITOR_MINIMO.0, EDITOR_MINIMO.1)));
+    // Escondida hasta colocarla: centrada en la pantalla del raton y no donde la deje
+    // Windows, que con dos monitores era el otro.
+    if !medida.maximized {
+        colocar_a_media_pantalla(app, &window, EDITOR_MINIMO);
+    }
+    window.show()?;
+
+    // Se recuerda la ultima medida al cerrar. Mientras esta maximizada no se apunta el
+    // tamanno, porque al volver a abrirla sin maximizar tiene que salir como estaba antes.
+    let ultima = std::sync::Arc::new(Mutex::new(medida));
+    let (ventana, app2) = (window.clone(), app.clone());
+    window.on_window_event(move |evento| match evento {
+        tauri::WindowEvent::Resized(_) => {
+            if ventana.is_minimized().unwrap_or(false) {
+                return;
+            }
+            let mut u = ultima.lock();
+            u.maximized = ventana.is_maximized().unwrap_or(false);
+            if !u.maximized {
+                if let (Ok(t), Ok(f)) = (ventana.inner_size(), ventana.scale_factor()) {
+                    let l = t.to_logical::<f64>(f);
+                    (u.width, u.height) = (l.width, l.height);
+                }
+            }
+        }
+        tauri::WindowEvent::Destroyed => guardar_medida_del_editor(&app2, *ultima.lock()),
+        _ => {}
+    });
     window.set_focus()?;
     Ok(())
+}
+
+/// Lo minimo para que quepan las tres columnas del editor (herramientas, imagen, panel)
+/// sin que la imagen se quede en un sello. Cabe en una pantalla de 1366 x 768 al 125 %.
+const EDITOR_MINIMO: (f64, f64) = (860.0, 540.0);
+
+/// La medida del editor si no se sabe en que pantalla se va a abrir.
+const EDITOR_INICIAL: (f64, f64) = (1600.0, 960.0);
+
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+struct MedidaEditor {
+    width: f64,
+    height: f64,
+    maximized: bool,
+}
+
+fn ruta_medida_del_editor(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("editor-window.json"))
+}
+
+fn guardar_medida_del_editor(app: &AppHandle, medida: MedidaEditor) {
+    let Some(ruta) = ruta_medida_del_editor(app) else { return };
+    if let Ok(texto) = serde_json::to_string(&medida) {
+        let _ = std::fs::create_dir_all(ruta.parent().unwrap_or(&ruta));
+        let _ = std::fs::write(ruta, texto);
+    }
+}
+
+/// Media pantalla de la pantalla donde esta el raton, o maximizada si asi se cerro la
+/// ultima vez.
+///
+/// Ya no se recuerda el ancho y el alto: salia de la ultima vez y casi siempre era la
+/// inicial de 1600 x 960, que en un monitor grande se quedaba pequenna. Lo que se pidio es
+/// que abra siempre a media pantalla y centrada.
+fn medida_del_editor(app: &AppHandle) -> MedidaEditor {
+    let maximizada = ruta_medida_del_editor(app)
+        .and_then(|r| std::fs::read_to_string(r).ok())
+        .and_then(|t| serde_json::from_str::<MedidaEditor>(&t).ok())
+        .is_some_and(|m| m.maximized);
+    let (width, height) = monitor_del_raton(app)
+        .map(|m| media_pantalla(&m, EDITOR_MINIMO))
+        .unwrap_or(EDITOR_INICIAL);
+    MedidaEditor { width, height, maximized: maximizada }
 }
 
 /// Deja la captura flotando encima de todo, para tenerla a la vista mientras se trabaja.
@@ -1077,6 +1149,11 @@ fn sitio_del_ancla(region: Rect, monitor: Option<MonitorSitio>) -> (i32, i32) {
 pub fn show_settings(app: &AppHandle) -> Result<()> {
     if let Some(window) = app.get_webview_window("main") {
         crate::platform::webview::memoria_baja(&window, false);
+        if !PRINCIPAL_COLOCADA.swap(true, Ordering::Relaxed) {
+            colocar_a_media_pantalla(app, &window, PRINCIPAL_MINIMO);
+        } else {
+            caber_en_pantalla(&window);
+        }
         window.show()?;
         let _ = window.unminimize();
         let _ = window.set_focus();
@@ -1089,6 +1166,68 @@ pub fn show_settings(app: &AppHandle) -> Result<()> {
         let _ = window.emit(crate::EVENT_SETTINGS_SHOWN, ());
     }
     Ok(())
+}
+
+/// Si la ventana principal ya se coloco en esta sesion. La primera vez que se abre sale a
+/// media pantalla y centrada; las siguientes, como la dejo la persona.
+static PRINCIPAL_COLOCADA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Lo minimo de la ventana principal, el mismo que `minWidth`/`minHeight` de tauri.conf.json.
+const PRINCIPAL_MINIMO: (f64, f64) = (900.0, 560.0);
+
+/// Que parte del ancho y del alto libres de la pantalla ocupa una ventana grande al abrirse.
+/// El 72 % de cada lado es la mitad del area, que es lo que se pidio: en 2560 x 1440 sale
+/// de unos 1840 x 1000. Un tamanno fijo en pixeles quedaba pequenno en pantallas grandes
+/// (1180 x 760 era un cuarto de un monitor de 1440p) y enorme en las pequennas.
+const PARTE_DE_LA_PANTALLA: f64 = 0.72;
+
+/// La pantalla donde esta el raton, que es donde se esta mirando; si no, la principal.
+fn monitor_del_raton(app: &AppHandle) -> Option<tauri::Monitor> {
+    app.cursor_position()
+        .ok()
+        .and_then(|p| app.monitor_from_point(p.x, p.y).ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten())
+}
+
+/// La medida de una ventana grande en esa pantalla, en pixeles logicos y nunca por debajo
+/// del minimo de la ventana.
+fn media_pantalla(monitor: &tauri::Monitor, minimo: (f64, f64)) -> (f64, f64) {
+    let hueco = monitor.work_area().size.to_logical::<f64>(monitor.scale_factor());
+    (
+        (hueco.width * PARTE_DE_LA_PANTALLA).round().max(minimo.0).min(hueco.width),
+        (hueco.height * PARTE_DE_LA_PANTALLA).round().max(minimo.1).min(hueco.height),
+    )
+}
+
+/// Pone la ventana a media pantalla y centrada en la pantalla del raton. `center()` no
+/// vale: centra en la pantalla donde ya esta la ventana, que con dos monitores no tiene por
+/// que ser la que se esta mirando.
+fn colocar_a_media_pantalla(app: &AppHandle, window: &tauri::WebviewWindow, minimo: (f64, f64)) {
+    let Some(monitor) = monitor_del_raton(app) else { return };
+    let (ancho, alto) = media_pantalla(&monitor, minimo);
+    let _ = window.set_size(LogicalSize::new(ancho, alto));
+    let zona = monitor.work_area();
+    let f = monitor.scale_factor();
+    let (w, h) = ((ancho * f) as i32, (alto * f) as i32);
+    let _ = window.set_position(PhysicalPosition::new(
+        zona.position.x + (zona.size.width as i32 - w) / 2,
+        zona.position.y + (zona.size.height as i32 - h) / 2,
+    ));
+}
+
+/// La ventana principal abre grande, y en un portatil de 1366 x 768 al 125 %
+/// eso no cabe: se salia por abajo con la barra de estado escondida detras de la de
+/// tareas. Si no cabe, se encoge a lo que deja la pantalla y se vuelve a centrar; si
+/// cabe, no se toca, que el tamanno que haya elegido la persona manda.
+fn caber_en_pantalla(window: &tauri::WebviewWindow) {
+    let (Ok(Some(monitor)), Ok(tam)) = (window.current_monitor(), window.outer_size()) else { return };
+    let zona = monitor.work_area().size;
+    let ancho = tam.width.min(zona.width * 94 / 100);
+    let alto = tam.height.min(zona.height * 94 / 100);
+    if (ancho, alto) != (tam.width, tam.height) {
+        let _ = window.set_size(PhysicalSize::new(ancho, alto));
+        let _ = window.center();
+    }
 }
 
 /// Windows solo deja robar el primer plano a quien tiene derecho a ello.

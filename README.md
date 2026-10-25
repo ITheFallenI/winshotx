@@ -35,14 +35,37 @@ It lives in the system tray. If you cannot see the icon, look behind the `^` arr
 
 ## What this fork adds
 
+### New in 0.5.0
+- **A new image editor for screenshots**, laid out like a desktop photo editor: a menu bar, a
+  labelled tool rail, a layers panel and a status bar with zoom.
+- **Layers and folders:** every mark is a layer you can select, hide, reorder, duplicate or delete
+  from the panel. Group layers into folders (`Ctrl+G`), and drag layers onto a folder, between
+  layers or out of a folder with the mouse.
+- **Lock layers and folders** (`Ctrl+L` or the padlock): a locked layer stays visible and is saved,
+  but can't be selected, moved, nudged, restyled or deleted on the image. Locking a whole folder
+  locks everything in it, and you can still unlock a single layer inside it.
+- **Resizable panels:** drag the edges of the tool rail, the right panel and the layers list; double
+  click to reset. A narrow tool rail switches to icons only.
+- The editor opens with **Pan** selected; middle-click or `Space` pans with any tool and the mouse
+  wheel zooms.
+- **A redesigned main window** in the same style as the editor: a sidebar with **New capture** and
+  **New recording** buttons, sections with icons, and a status bar.
+- **Opens at half the screen**, centred on the monitor you're using, for both the main window and
+  the editor.
+- **A redesigned gallery:** thumbnail cards grouped under Today, Yesterday and dated days, hover
+  buttons to edit, copy, show in folder, rename and delete, a right-click menu, and double-click to
+  edit. **Videos and GIFs get a real thumbnail** taken from the file.
+- The gallery, preview and before/after comparison are now translated (English, Spanish, Chinese).
+
 ### Gallery
-- A **Gallery** tab (and **Capture gallery** in the tray) for every saved screenshot, GIF and MP4,
-  grouped by day.
+- A **Gallery** section (and **Capture gallery** in the tray) for every saved screenshot, GIF and
+  MP4, grouped by day.
 - Search by filename, filter by date and type, and page through large folders.
 - Thumbnails load only when they are on screen, two at a time, so big folders stay light.
 - Preview with **Ctrl + mouse wheel** zoom, drag to pan, **Fit** and **100%**. Videos load only when
   opened.
 - Copy, open, show in folder, rename, or move to the **Recycle Bin** (restorable).
+- Tick two images to compare them.
 
 ### Image comparison
 - Pick two captures (or any two files) and compare them with a reveal slider or a difference view.
@@ -126,8 +149,11 @@ themes, and Spanish, English and Chinese. No account, no cloud and no telemetry.
 | `Ctrl+A` | Whole monitor |
 | `Esc` or right-click | Cancel |
 
-Editor: `0` select, `1` arrow, `2` box, `3` text, `4` highlight, `5` numbered step, `6` hide details,
-`7` brush, `Ctrl+Z` / `Ctrl+Y` undo/redo, `Ctrl+O` open image, `Ctrl+V` paste image.
+Image editor tools: `V` select, `C` crop, `H` pan, `A` arrow, `U` shape, `T` text, `N` numbered step,
+`M` highlight, `B` pencil, `P` pixelate (`0`–`7` still work too). `Ctrl+Z` / `Ctrl+Y` undo/redo,
+`Ctrl+D` duplicate, `Ctrl+G` / `Ctrl+Shift+G` folder in/out, `Ctrl+L` lock, `Delete` delete,
+`Ctrl+A` select all, `Ctrl+0` fit, `Ctrl+1` 100%, `Ctrl+O` open image, `Ctrl+V` paste image,
+`F1` all shortcuts.
 
 Every global shortcut can be changed in Settings.
 

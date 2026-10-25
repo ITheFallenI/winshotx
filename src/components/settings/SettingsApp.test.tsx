@@ -165,15 +165,15 @@ describe("F2 para capturar region", () => {
 });
 
 describe("las secciones", () => {
-  it("includes Gallery and uses an icon-only Settings button", async () => {
+  it("van en la columna de la izquierda, cada una con su icono y su nombre, como las herramientas del editor", async () => {
     await abrirAjustes();
     const menu = screen.getByLabelText("Secciones de ajustes");
     const nombres = within(menu)
       .getAllByRole("button")
       .map((b) => b.getAttribute("aria-label") ?? b.textContent);
     expect(nombres).toEqual(["Capturar", "Grabar", "Galería", "Teclas", "Ajustes"]);
-    expect(within(menu).getByRole("button", { name: "Ajustes" }).textContent).toBe("");
-    expect(within(menu).getByRole("button", { name: "Teclas" }).querySelector("svg")).not.toBeNull();
+    for (const nombre of nombres) expect(within(menu).getByRole("button", { name: nombre! }).querySelector("svg")).not.toBeNull();
+    expect(within(menu).getByRole("button", { name: "Capturar" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("en ingles se llaman por su nombre ingles", async () => {
@@ -190,20 +190,20 @@ describe("las secciones", () => {
     responde("gallery_list", { items: [], total: 0, directory: "C:/captures" });
     await abrirAjustes();
     fireEvent.click(screen.getByRole("button", { name: "Galería" }));
-    expect(screen.getByLabelText("Search captures")).toBeInTheDocument();
+    expect(screen.getByLabelText("Buscar capturas")).toBeInTheDocument();
     expect(llamadas.some(c => c.comando === "open_gallery")).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Capturar" }));
-    expect(screen.queryByLabelText("Search captures")).toBeNull();
+    expect(screen.queryByLabelText("Buscar capturas")).toBeNull();
   });
 
   it("handles a pending tray Gallery request and later opening requests", async () => {
     responde("take_gallery_request", true);
     responde("gallery_list", { items: [], total: 0, directory: "C:/captures" });
     await abrirAjustes();
-    await screen.findByLabelText("Search captures");
+    await screen.findByLabelText("Buscar capturas");
     fireEvent.click(screen.getByRole("button", { name: "Capturar" }));
     emite(EVENTS.settingsShown, null);
-    await screen.findByLabelText("Search captures");
+    await screen.findByLabelText("Buscar capturas");
   });
 
   it("empieza por Capturar, que es lo que se viene a cambiar", async () => {
